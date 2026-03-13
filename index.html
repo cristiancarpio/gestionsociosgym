@@ -541,18 +541,25 @@ async function loadFromSheet() {
   try {
     const r = await apiCall({ action: 'get_all' });
     if (!r.ok || !r.data || !r.data.Socios) { setSyncState('synced','Sincronizado'); return; }
+
+    // Build map of sheet data by ID
+    const sheetMap = {};
     r.data.Socios.forEach(row => {
-      const id = row['ID'];
-      if (id && !socios.find(s => s.id === id)) {
-        socios.push({
-          id, nombre: row['Nombre'], dni: row['DNI'], telefono: row['Teléfono'],
-          email: row['Email'], plan: row['Plan'], monto: row['Monto'],
-          fecha_pago: row['Fecha Pago'], vencimiento: row['Vencimiento'],
-          notas: row['Notas'], fecha_registro: row['Fecha Registro'],
-          status: row['Estado'] || calcStatus(row['Vencimiento']), synced: true
-        });
-      }
+      const id = String(row['ID'] || '').trim();
+      if (!id) return;
+      sheetMap[id] = {
+        id, nombre: row['Nombre'], dni: row['DNI'], telefono: row['Teléfono'],
+        email: row['Email'], plan: row['Plan'], monto: row['Monto'],
+        fecha_pago: row['Fecha Pago'], vencimiento: row['Vencimiento'],
+        notas: row['Notas'], fecha_registro: row['Fecha Registro'],
+        status: row['Estado'] || calcStatus(row['Vencimiento']), synced: true
+      };
     });
+
+    // Keep local-only records that haven't synced yet, replace everything else
+    const localOnly = socios.filter(s => !s.synced && !sheetMap[s.id]);
+    socios = [...Object.values(sheetMap), ...localOnly];
+
     saveLocal(); renderSocios(); updateStats();
     setSyncState('synced','Sincronizado');
   } catch(e) { setSyncState('error','Error'); }
