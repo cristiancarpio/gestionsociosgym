@@ -566,12 +566,22 @@ async function loadFromSheet() {
 }
 
 async function apiCall(payload) {
-  const res = await fetch(SCRIPT_URL, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(payload)
-  });
-  try { return await res.json(); }
-  catch { return { ok: true }; }
+  // Google Apps Script doesn't support CORS preflight (OPTIONS).
+  // GET requests work fine; POST must use no-cors (fire-and-forget).
+  if (payload.action === 'get_all') {
+    const url = SCRIPT_URL + '?action=get_all&t=' + Date.now();
+    const res  = await fetch(url, { method: 'GET' });
+    return await res.json();
+  } else {
+    // no-cors POST: response is opaque, but the write still executes on Google's side
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    return { ok: true };
+  }
 }
 
 function saveLocal() {
