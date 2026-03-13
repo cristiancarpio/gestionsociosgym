@@ -136,6 +136,20 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
 .socio-meta-item{font-size:12px;color:var(--muted2);}
 .socio-footer{display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);letter-spacing:.06em;}
 .venc-alert{font-size:11px;font-weight:600;color:var(--orange);}
+/* ── EDIT MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s;}
+.modal-overlay.show{opacity:1;pointer-events:all;}
+.modal-sheet{background:var(--surface);border:1px solid var(--border2);border-bottom:none;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;transform:translateY(40px);transition:transform .35s cubic-bezier(.34,1.2,.64,1);padding:24px 20px 40px;}
+.modal-overlay.show .modal-sheet{transform:translateY(0);}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:.1em;color:var(--accent);}
+.modal-close{background:none;border:none;color:var(--muted2);font-size:22px;cursor:pointer;padding:4px;}
+.modal-close:hover{color:var(--text);}
+.btn-delete{width:100%;background:none;border:1px solid var(--red);color:var(--red);padding:12px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.1em;cursor:pointer;margin-top:8px;transition:all .2s;}
+.btn-delete:hover{background:rgba(255,68,68,.08);}
+.btn-edit-card{background:none;border:1px solid var(--border2);color:var(--muted2);padding:5px 10px;font-size:11px;letter-spacing:.1em;cursor:pointer;font-family:'Barlow',sans-serif;font-weight:600;transition:all .2s;text-transform:uppercase;}
+.btn-edit-card:hover{border-color:var(--accent);color:var(--accent);}
+
 
 .empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
 .empty-state .big{font-size:48px;margin-bottom:12px;}
@@ -345,6 +359,50 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
   </div>
 </div>
 
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="edit-modal" onclick="closeEditModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title">Editar Socio</div>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="form-section" style="margin-bottom:12px">
+      <div class="form-section-title">Datos personales</div>
+      <div class="form-row"><div class="f"><label>Nombre completo *</label><input type="text" id="e-nombre" placeholder="Juan Pérez"></div></div>
+      <div class="form-row">
+        <div class="f"><label>DNI</label><input type="text" id="e-dni"></div>
+        <div class="f"><label>Teléfono</label><input type="tel" id="e-tel"></div>
+      </div>
+      <div class="form-row"><div class="f"><label>Email</label><input type="email" id="e-email"></div></div>
+    </div>
+    <div class="form-section" style="margin-bottom:12px">
+      <div class="form-section-title">Membresía</div>
+      <div class="form-row">
+        <div class="f"><label>Plan *</label>
+          <select id="e-plan">
+            <option>Mensual</option><option>Trimestral</option>
+            <option>Semestral</option><option>Anual</option><option>Por clase</option>
+          </select>
+        </div>
+        <div class="f"><label>Monto (ARS)</label><input type="number" id="e-monto"></div>
+      </div>
+      <div class="form-row">
+        <div class="f"><label>Fecha de pago</label><input type="date" id="e-fecha"></div>
+        <div class="f"><label>Vencimiento</label><input type="date" id="e-venc"></div>
+      </div>
+    </div>
+    <div class="form-section" style="margin-bottom:12px">
+      <div class="form-section-title">Notas</div>
+      <div class="form-row"><div class="f"><textarea id="e-notas" placeholder="Observaciones..."></textarea></div></div>
+    </div>
+    <button class="btn-guardar" id="btn-edit-save" onclick="saveEdit()" style="margin-bottom:0">
+      <span class="mini-spinner" id="edit-spin"></span>
+      <span id="edit-txt">GUARDAR CAMBIOS</span>
+    </button>
+    <button class="btn-delete" onclick="deleteSocio()">🗑 ELIMINAR SOCIO</button>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -642,7 +700,7 @@ function renderSocios() {
       <div class="socio-footer">
         <span>${s.synced ? '✓ Sincronizado' : '⟳ Pendiente de sync'}</span>
         ${alertVenc ? `<span class="venc-alert">⚠ Vence en ${daysLeft} día${daysLeft===1?'':'s'}</span>` : ''}
-        <span style="color:var(--muted);font-size:10px">${s.fecha_registro||''}</span>
+        <button class="btn-edit-card" onclick="openEditModal('${s.id}')">✏ Editar</button>
       </div>
     </div>`;
   }).join('');
@@ -763,6 +821,88 @@ function animateBars() {
   requestAnimationFrame(() => {
     document.querySelectorAll('.bar-fill').forEach(el => { el.style.width = el.dataset.w + '%'; });
   });
+}
+
+
+// ── EDIT MODAL
+let editingId = null;
+
+function openEditModal(id) {
+  const s = socios.find(x => x.id === id);
+  if (!s) return;
+  editingId = id;
+  document.getElementById('e-nombre').value = s.nombre || '';
+  document.getElementById('e-dni').value    = s.dni     || '';
+  document.getElementById('e-tel').value    = s.telefono|| '';
+  document.getElementById('e-email').value  = s.email   || '';
+  document.getElementById('e-plan').value   = s.plan    || 'Mensual';
+  document.getElementById('e-monto').value  = s.monto   || '';
+  document.getElementById('e-fecha').value  = s.fecha_pago   || '';
+  document.getElementById('e-venc').value   = s.vencimiento  || '';
+  document.getElementById('e-notas').value  = s.notas   || '';
+  document.getElementById('edit-modal').classList.add('show');
+}
+
+function closeEditModal(e) {
+  if (e && e.target !== document.getElementById('edit-modal')) return;
+  document.getElementById('edit-modal').classList.remove('show');
+  editingId = null;
+}
+
+function saveEdit() {
+  if (!editingId) return;
+  const nombre = document.getElementById('e-nombre').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+
+  const btn  = document.getElementById('btn-edit-save');
+  const spin = document.getElementById('edit-spin');
+  const txt  = document.getElementById('edit-txt');
+  btn.disabled = true; spin.style.display = 'block'; txt.textContent = 'GUARDANDO...';
+
+  const venc = document.getElementById('e-venc').value;
+  const idx  = socios.findIndex(s => s.id === editingId);
+  if (idx < 0) return;
+
+  socios[idx] = {
+    ...socios[idx],
+    nombre,
+    dni:        document.getElementById('e-dni').value.trim(),
+    telefono:   document.getElementById('e-tel').value.trim(),
+    email:      document.getElementById('e-email').value.trim(),
+    plan:       document.getElementById('e-plan').value,
+    monto:      document.getElementById('e-monto').value,
+    fecha_pago: document.getElementById('e-fecha').value,
+    vencimiento: venc,
+    notas:      document.getElementById('e-notas').value.trim(),
+    status:     calcStatus(venc),
+    synced:     false
+  };
+
+  // Add to pending sync
+  const existing = pendingSync.findIndex(p => p.id === editingId);
+  if (existing >= 0) pendingSync[existing] = socios[idx];
+  else pendingSync.push(socios[idx]);
+
+  setTimeout(() => {
+    saveLocal(); updatePendingUI(); renderSocios(); updateStats();
+    btn.disabled = false; spin.style.display = 'none'; txt.textContent = 'GUARDAR CAMBIOS';
+    document.getElementById('edit-modal').classList.remove('show');
+    editingId = null;
+    showToast(isOnline ? '✓ Guardado · sincronizando...' : '✓ Guardado · se sincronizará al conectarse', 'success');
+    if (isOnline) triggerSync();
+  }, 500);
+}
+
+function deleteSocio() {
+  if (!editingId) return;
+  const s = socios.find(x => x.id === editingId);
+  if (!confirm(`¿Eliminar a ${s?.nombre}? Esta acción no se puede deshacer.`)) return;
+  socios = socios.filter(x => x.id !== editingId);
+  pendingSync = pendingSync.filter(x => x.id !== editingId);
+  saveLocal(); updatePendingUI(); renderSocios(); updateStats();
+  document.getElementById('edit-modal').classList.remove('show');
+  editingId = null;
+  showToast('Socio eliminado', 'warn');
 }
 
 // ── TOAST
