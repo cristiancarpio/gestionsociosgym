@@ -648,6 +648,8 @@ async function startCheckin() {
     } else {
       showResult('err', '✗', socio.nombre,
         `Membresía vencida${venc ? ' el ' + formatDate(socio.vencimiento) : ''} · ${socio.plan}`);
+      // Notify admin via Sheet
+      notifyAdmin(socio);
     }
 
   } catch(e) {
@@ -802,6 +804,48 @@ async function registerFingerprint() {
       showToast('Error: ' + e.message, 'err');
     }
   }
+}
+
+// ── NOTIFICAR ADMIN ──
+const TG_TOKEN   = '8658034455:AAFdCmYS5yfuw4c2MUY0adRNRdglVlmUbtg';
+const TG_CHAT_ID = '153995413';
+
+async function notifyAdmin(socio) {
+  const hora = new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+  const venc = socio.vencimiento ? formatDate(String(socio.vencimiento)) : '—';
+  const msg  = `🚨 *Acceso denegado*\n👤 ${socio.nombre}\n📋 ${socio.plan}\n📅 Venció el ${venc}\n🕐 ${hora}hs`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        chat_id:    TG_CHAT_ID,
+        text:       msg,
+        parse_mode: 'Markdown'
+      })
+    });
+  } catch(e) {}
+
+  // Also log to Sheet
+  if (!scriptUrl) return;
+  try {
+    await fetch(scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'sync_alerta',
+        data: {
+          id:          'a' + Date.now(),
+          fecha:       new Date().toLocaleString('es-AR'),
+          nombre:      socio.nombre,
+          plan:        socio.plan,
+          vencimiento: venc
+        }
+      })
+    });
+  } catch(e) {}
 }
 
 // ── WEBAUTHN UTILS ──

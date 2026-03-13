@@ -1,148 +1,1014 @@
-// ============================================================
-// GymAdmin — Google Apps Script
-// Pegá este código en: Extensions > Apps Script
-// Luego: Deploy > New deployment > Web App
-//   - Execute as: Me
-//   - Who has access: Anyone
-// ============================================================
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#e8ff47">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GymAdmin">
+<meta name="description" content="Panel de gestión para gimnasio">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<title>GymAdmin</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080808;--surface:#111;--card:#161616;--border:#252525;--border2:#333;
+  --accent:#e8ff47;--red:#ff4444;--green:#44ff88;--blue:#44aaff;--orange:#ff9944;
+  --text:#f2f2f2;--muted:#555;--muted2:#888;
+  --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;transition:opacity .3s,transform .3s;}
+.screen.hidden{opacity:0;pointer-events:none;transform:scale(.97);}
 
-const SHEET_SOCIOS = 'Socios';
-const SHEET_VENTAS = 'Ventas';
+/* ── LOGIN ── */
+#s-login{background:var(--bg);align-items:center;justify-content:center;overflow:hidden;}
+.login-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;}
+.login-bg-text{font-family:'Bebas Neue',sans-serif;font-size:min(45vw,280px);color:transparent;-webkit-text-stroke:1px #1e1e1e;letter-spacing:.05em;user-select:none;animation:breathe 6s ease-in-out infinite;}
+@keyframes breathe{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.02)}}
+.login-wrap{position:relative;z-index:1;width:100%;max-width:360px;padding:0 28px;}
+.login-mark{font-family:'Bebas Neue',sans-serif;font-size:44px;letter-spacing:.15em;color:var(--accent);line-height:1;margin-bottom:4px;}
+.login-tagline{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:44px;}
+.inp-group{margin-bottom:16px;}
+.inp-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);margin-bottom:7px;display:block;}
+.inp{width:100%;background:var(--card);border:1px solid var(--border2);color:var(--text);padding:13px 16px;font-family:'Barlow',sans-serif;font-size:15px;outline:none;transition:border-color .2s,box-shadow .2s;border-radius:0;}
+.inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,255,71,.08);}
+.btn-login{width:100%;margin-top:8px;background:var(--accent);color:#000;border:none;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.15em;cursor:pointer;transition:transform .1s;}
+.btn-login:active{transform:scale(.98);}
+.login-err{color:var(--red);font-size:12px;margin-top:12px;letter-spacing:.04em;min-height:18px;text-align:center;}
 
-function doPost(e) {
+/* ── SETUP ── */
+#s-setup{background:var(--bg);align-items:center;justify-content:center;padding:28px;overflow-y:auto;}
+.setup-box{background:var(--card);border:1px solid var(--border2);padding:32px 28px;width:100%;max-width:420px;position:relative;}
+.setup-box::before{content:'';position:absolute;top:0;left:0;width:40px;height:3px;background:var(--accent);}
+.setup-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:.12em;color:var(--accent);margin-bottom:6px;}
+.setup-sub{font-size:12px;color:var(--muted2);line-height:1.7;margin-bottom:24px;}
+.setup-step{display:flex;gap:12px;margin-bottom:12px;padding:12px;background:var(--surface);border:1px solid var(--border);}
+.step-num{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--accent);flex-shrink:0;line-height:1;}
+.step-txt{font-size:12px;color:var(--muted2);line-height:1.7;}
+.step-txt strong{color:var(--text);}
+.step-txt code{background:var(--bg);color:var(--accent);padding:1px 6px;font-size:11px;}
+.url-field{margin-top:20px;}
+.url-field label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);display:block;margin-bottom:8px;font-weight:600;}
+.url-field input{width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:12px 14px;font-family:'Barlow',sans-serif;font-size:13px;outline:none;transition:border-color .2s;}
+.url-field input:focus{border-color:var(--accent);}
+.btn-setup{width:100%;margin-top:12px;background:var(--accent);color:#000;border:none;padding:14px;font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:.14em;cursor:pointer;}
+.setup-skip{text-align:center;margin-top:12px;font-size:12px;color:var(--muted);cursor:pointer;letter-spacing:.06em;}
+.setup-skip:hover{color:var(--text);}
+
+/* ── APP SHELL ── */
+#s-app{background:var(--bg);padding-top:var(--safe-top);}
+.app-header{background:var(--surface);border-bottom:1px solid var(--border);height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;}
+.app-logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.15em;color:var(--accent);}
+.header-actions{display:flex;align-items:center;gap:10px;}
+.sync-badge{display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.06em;padding:4px 10px;border:1px solid var(--border2);color:var(--muted2);cursor:pointer;transition:all .2s;background:var(--card);}
+.sync-badge.syncing{border-color:var(--accent);color:var(--accent);}
+.sync-badge.synced{border-color:var(--green);color:var(--green);}
+.sync-badge.error{border-color:var(--red);color:var(--red);}
+.sync-badge.offline{border-color:var(--orange);color:var(--orange);}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.sync-badge.syncing .sync-dot{animation:pulse 1s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+.btn-icon{background:none;border:none;color:var(--muted2);cursor:pointer;padding:6px;font-size:18px;transition:color .2s;line-height:1;}
+.btn-icon:hover{color:var(--text);}
+.offline-banner{background:rgba(255,153,68,.1);border-bottom:1px solid rgba(255,153,68,.3);padding:8px 16px;font-size:11px;color:var(--orange);letter-spacing:.08em;text-align:center;display:none;flex-shrink:0;}
+.offline-banner.show{display:block;}
+
+/* ── TABS ── */
+.nav-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+.nav-tab{flex:1;padding:13px 8px;text-align:center;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;font-weight:600;position:relative;}
+.nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.nav-tab .badge{position:absolute;top:8px;right:50%;transform:translateX(14px);background:var(--red);color:#fff;font-size:9px;width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center;font-weight:700;letter-spacing:0;}
+.tab-content{display:none;flex:1;overflow-y:auto;}
+.tab-content.active{display:flex;flex-direction:column;}
+
+/* ── FORMS ── */
+.form-wrap{padding:20px;}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:30px;letter-spacing:.1em;margin-bottom:2px;line-height:1;}
+.section-sub{font-size:12px;color:var(--muted2);letter-spacing:.06em;margin-bottom:24px;}
+.form-section{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:16px;position:relative;}
+.form-section::before{content:'';position:absolute;top:0;left:0;width:32px;height:2px;background:var(--accent);}
+.form-section-title{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);margin-bottom:16px;font-weight:600;}
+.form-row{display:flex;gap:12px;margin-bottom:12px;}
+.form-row:last-child{margin-bottom:0;}
+.form-row .f{flex:1;}
+.f{display:flex;flex-direction:column;}
+.f label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;font-weight:600;}
+.f input,.f select,.f textarea{width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:10px 12px;font-family:'Barlow',sans-serif;font-size:14px;outline:none;transition:border-color .2s;appearance:none;}
+.f select option{background:var(--surface);}
+.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--accent);}
+.f textarea{resize:none;height:72px;}
+.f input.err,.f select.err{border-color:var(--red)!important;}
+.btn-guardar{width:100%;background:var(--accent);color:#000;border:none;padding:16px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.15em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;transition:transform .1s;}
+.btn-guardar:active{transform:scale(.98);}
+.btn-guardar:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.mini-spinner{width:18px;height:18px;border:2px solid #000;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;display:none;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── SOCIOS LIST ── */
+.list-wrap{padding:16px;}
+.list-toolbar{display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;}
+.search-inp{flex:1;min-width:120px;background:var(--card);border:1px solid var(--border2);color:var(--text);padding:10px 14px;font-family:'Barlow',sans-serif;font-size:14px;outline:none;}
+.search-inp:focus{border-color:var(--accent);}
+.filter-btn{background:var(--card);border:1px solid var(--border2);color:var(--muted2);padding:10px 12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;font-family:'Barlow',sans-serif;font-weight:600;transition:all .2s;}
+.filter-btn.active{border-color:var(--accent);color:var(--accent);}
+.pending-banner{background:rgba(255,170,68,.08);border:1px solid rgba(255,170,68,.3);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:#ffaa44;letter-spacing:.06em;}
+.btn-sync-now{background:#ffaa44;color:#000;border:none;padding:6px 14px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.1em;cursor:pointer;white-space:nowrap;}
+
+/* Socio card */
+.socio-card{background:var(--card);border:1px solid var(--border);padding:16px;margin-bottom:10px;position:relative;transition:border-color .2s;}
+.socio-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+.socio-card.vigente::before{background:var(--green);}
+.socio-card.vencido::before{background:var(--red);}
+.socio-card.pendiente::before{background:var(--orange);}
+.socio-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+.socio-name{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.08em;line-height:1;}
+.socio-badges{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+.socio-plan{font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--border2);color:var(--muted2);font-weight:600;}
+.status-pill{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;font-weight:700;}
+.status-pill.vigente{color:var(--green);background:rgba(68,255,136,.1);}
+.status-pill.vencido{color:var(--red);background:rgba(255,68,68,.1);}
+.status-pill.pendiente{color:var(--orange);background:rgba(255,153,68,.1);}
+.socio-meta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+.socio-meta-item{font-size:12px;color:var(--muted2);}
+.socio-footer{display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);letter-spacing:.06em;}
+.venc-alert{font-size:11px;font-weight:600;color:var(--orange);}
+/* ── EDIT MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s;}
+.modal-overlay.show{opacity:1;pointer-events:all;}
+.modal-sheet{background:var(--surface);border:1px solid var(--border2);border-bottom:none;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;transform:translateY(40px);transition:transform .35s cubic-bezier(.34,1.2,.64,1);padding:24px 20px 40px;}
+.modal-overlay.show .modal-sheet{transform:translateY(0);}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:.1em;color:var(--accent);}
+.modal-close{background:none;border:none;color:var(--muted2);font-size:22px;cursor:pointer;padding:4px;}
+.modal-close:hover{color:var(--text);}
+.btn-delete{width:100%;background:none;border:1px solid var(--red);color:var(--red);padding:12px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.1em;cursor:pointer;margin-top:8px;transition:all .2s;}
+.btn-delete:hover{background:rgba(255,68,68,.08);}
+.btn-edit-card{background:none;border:1px solid var(--border2);color:var(--muted2);padding:5px 10px;font-size:11px;letter-spacing:.1em;cursor:pointer;font-family:'Barlow',sans-serif;font-weight:600;transition:all .2s;text-transform:uppercase;}
+.btn-edit-card:hover{border-color:var(--accent);color:var(--accent);}
+
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
+.empty-state .big{font-size:48px;margin-bottom:12px;}
+.empty-state p{font-size:13px;letter-spacing:.06em;}
+
+/* ── STATS ── */
+.stats-wrap{padding:20px;}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+.stat-card{background:var(--card);border:1px solid var(--border);padding:20px 16px;position:relative;overflow:hidden;}
+.stat-card::after{content:'';position:absolute;bottom:-20px;right:-20px;width:80px;height:80px;border-radius:50%;background:var(--accent);opacity:.04;}
+.stat-label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px;font-weight:600;}
+.stat-value{font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:.05em;line-height:1;color:var(--accent);}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.chart-section{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:16px;}
+.chart-title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:16px;font-weight:600;}
+.bar-chart{display:flex;flex-direction:column;gap:10px;}
+.bar-row{display:flex;align-items:center;gap:10px;}
+.bar-label{font-size:11px;color:var(--muted2);width:72px;text-align:right;flex-shrink:0;}
+.bar-track{flex:1;height:20px;background:var(--surface);border:1px solid var(--border);position:relative;overflow:hidden;}
+.bar-fill{height:100%;background:var(--accent);transition:width 1s cubic-bezier(.34,1.56,.64,1);width:0;}
+.bar-fill.c2{background:var(--blue);}
+.bar-fill.c3{background:var(--green);}
+.bar-fill.c4{background:#cc88ff;}
+.bar-val{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:700;color:#000;}
+
+/* Vencimientos próximos */
+.venc-list{margin-bottom:20px;}
+.venc-item{background:var(--card);border:1px solid rgba(255,153,68,.25);border-left:3px solid var(--orange);padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+.venc-item-name{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.08em;}
+.venc-item-days{font-size:12px;color:var(--orange);font-weight:600;letter-spacing:.06em;}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:calc(20px + var(--safe-bottom));left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--border2);padding:14px 22px;font-size:13px;letter-spacing:.04em;z-index:9999;white-space:nowrap;opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1);max-width:90vw;pointer-events:none;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#toast.success{border-left:3px solid var(--accent);}
+#toast.error{border-left:3px solid var(--red);}
+#toast.info{border-left:3px solid var(--blue);}
+#toast.warn{border-left:3px solid var(--orange);}
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-thumb{background:var(--border2);}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="screen" id="s-login">
+  <div class="login-bg"><div class="login-bg-text">GYM</div></div>
+  <div class="login-wrap">
+    <div class="login-mark">GymAdmin</div>
+    <div class="login-tagline">Gestión de socios</div>
+    <div class="inp-group">
+      <label class="inp-label">Usuario</label>
+      <input class="inp" id="l-user" type="text" placeholder="admin" autocomplete="username">
+    </div>
+    <div class="inp-group">
+      <label class="inp-label">Contraseña</label>
+      <input class="inp" id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn-login" id="btn-login">INGRESAR</button>
+    <div class="login-err" id="l-err"></div>
+  </div>
+</div>
+
+<!-- SETUP -->
+<div class="screen hidden" id="s-setup">
+  <div class="setup-box">
+    <div class="setup-title">Conectar con Google Sheets</div>
+    <div class="setup-sub">Solo la primera vez. Tarda 5 minutos.</div>
+    <div class="setup-step">
+      <div class="step-num">1</div>
+      <div class="step-txt">Abrí tu Google Sheet → <strong>Extensiones → Apps Script</strong> → pegá el código del archivo <code>Code.gs</code></div>
+    </div>
+    <div class="setup-step">
+      <div class="step-num">2</div>
+      <div class="step-txt"><strong>Implementar → Nueva implementación → Aplicación web</strong> · Ejecutar como: <strong>Yo</strong> · Acceso: <strong>Cualquier persona</strong></div>
+    </div>
+    <div class="setup-step">
+      <div class="step-num">3</div>
+      <div class="step-txt">Copiá la <strong>URL de implementación</strong> y pegala acá</div>
+    </div>
+    <div class="url-field">
+      <label>URL de Google Apps Script</label>
+      <input type="url" id="setup-url" placeholder="https://script.google.com/macros/s/...">
+    </div>
+    <button class="btn-setup" onclick="saveSetup()">GUARDAR Y CONECTAR</button>
+    <div class="setup-skip" onclick="skipSetup()">Configurar más tarde →</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="screen hidden" id="s-app">
+  <div class="offline-banner" id="offline-banner">⚡ Sin conexión — los cambios se sincronizan cuando vuelva la red</div>
+
+  <div class="app-header">
+    <div class="app-logo">GymAdmin</div>
+    <div class="header-actions">
+      <div class="sync-badge" id="sync-badge" onclick="triggerSync()">
+        <div class="sync-dot"></div>
+        <span id="sync-label">—</span>
+      </div>
+      <div id="alert-bell" style="position:relative;display:none">
+        <button class="btn-icon" onclick="openAlerts()" title="Alertas de acceso denegado" style="font-size:20px">🔔</button>
+        <span id="alert-count" style="position:absolute;top:2px;right:2px;background:var(--red);color:#fff;font-size:9px;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700">0</span>
+      </div>
+      <button class="btn-icon" onclick="doLogout()">⏻</button>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-tab="nuevo">Nuevo</div>
+    <div class="nav-tab" data-tab="socios">
+      Socios
+      <span class="badge" id="pending-badge">0</span>
+    </div>
+    <div class="nav-tab" data-tab="stats">Resumen</div>
+  </div>
+
+  <!-- TAB: NUEVO SOCIO -->
+  <div class="tab-content active" id="tab-nuevo">
+    <div class="form-wrap">
+      <div class="section-title">Nuevo Socio</div>
+      <div class="section-sub">Se guarda localmente y sincroniza con Google Sheets</div>
+
+      <div class="form-section">
+        <div class="form-section-title">Datos personales</div>
+        <div class="form-row">
+          <div class="f"><label>Nombre completo *</label><input type="text" id="f-nombre" placeholder="Juan Pérez"></div>
+        </div>
+        <div class="form-row">
+          <div class="f"><label>DNI</label><input type="text" id="f-dni" placeholder="12.345.678"></div>
+          <div class="f"><label>Teléfono</label><input type="tel" id="f-tel" placeholder="381 000-0000"></div>
+        </div>
+        <div class="form-row">
+          <div class="f"><label>Email</label><input type="email" id="f-email" placeholder="juan@mail.com"></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Membresía</div>
+        <div class="form-row">
+          <div class="f"><label>Plan *</label>
+            <select id="f-plan">
+              <option value="">Seleccionar...</option>
+              <option>Mensual</option>
+              <option>Trimestral</option>
+              <option>Semestral</option>
+              <option>Anual</option>
+              <option>Por clase</option>
+            </select>
+          </div>
+          <div class="f"><label>Monto (ARS)</label><input type="number" id="f-monto" placeholder="15000"></div>
+        </div>
+        <div class="form-row">
+          <div class="f"><label>Fecha de pago *</label><input type="date" id="f-fecha"></div>
+          <div class="f"><label>Vencimiento</label><input type="date" id="f-venc"></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Notas</div>
+        <div class="form-row">
+          <div class="f"><textarea id="f-notas" placeholder="Horario preferido, lesiones, observaciones..."></textarea></div>
+        </div>
+      </div>
+
+      <button class="btn-guardar" id="btn-guardar" onclick="guardarSocio()">
+        <span class="mini-spinner" id="mini-spin"></span>
+        <span id="btn-txt">GUARDAR SOCIO</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- TAB: SOCIOS -->
+  <div class="tab-content" id="tab-socios">
+    <div class="list-wrap">
+      <div class="pending-banner" id="pending-banner" style="display:none">
+        <span id="pending-txt">⟳ Cambios pendientes de sync</span>
+        <button class="btn-sync-now" onclick="triggerSync()">SINCRONIZAR</button>
+      </div>
+      <div class="list-toolbar">
+        <input class="search-inp" id="search-inp" type="text" placeholder="Buscar por nombre o DNI..." oninput="renderSocios()">
+        <button class="filter-btn active" data-filter="todos"    onclick="setFilter(this)">Todos</button>
+        <button class="filter-btn"        data-filter="vigente"  onclick="setFilter(this)">Vigentes</button>
+        <button class="filter-btn"        data-filter="vencido"  onclick="setFilter(this)">Vencidos</button>
+      </div>
+      <div id="socios-list"></div>
+    </div>
+  </div>
+
+  <!-- TAB: RESUMEN -->
+  <div class="tab-content" id="tab-stats">
+    <div class="stats-wrap">
+      <div class="section-title">Resumen</div>
+      <div class="section-sub" id="stats-sub">—</div>
+      <div class="stats-grid" id="stats-grid"></div>
+
+      <div class="chart-section" id="venc-section" style="display:none">
+        <div class="chart-title">⚠ Vencen en los próximos 7 días</div>
+        <div class="venc-list" id="venc-list"></div>
+      </div>
+
+      <div class="chart-section">
+        <div class="chart-title">Socios por plan</div>
+        <div class="bar-chart" id="bar-planes"></div>
+      </div>
+      <div class="chart-section">
+        <div class="chart-title">Ingresos por mes (ARS)</div>
+        <div class="bar-chart" id="bar-ingresos"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ALERTS MODAL -->
+<div class="modal-overlay" id="alerts-modal" onclick="closeAlertsModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">🔔 Accesos Denegados</div>
+      <button class="modal-close" onclick="closeAlertsModal()">✕</button>
+    </div>
+    <div id="alerts-list"></div>
+    <button class="btn-guardar" onclick="markAllRead()" style="margin-top:16px;background:var(--card);color:var(--text);border:1px solid var(--border2)">
+      <span>MARCAR TODAS COMO LEÍDAS</span>
+    </button>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="edit-modal" onclick="closeEditModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title">Editar Socio</div>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="form-section" style="margin-bottom:12px">
+      <div class="form-section-title">Datos personales</div>
+      <div class="form-row"><div class="f"><label>Nombre completo *</label><input type="text" id="e-nombre" placeholder="Juan Pérez"></div></div>
+      <div class="form-row">
+        <div class="f"><label>DNI</label><input type="text" id="e-dni"></div>
+        <div class="f"><label>Teléfono</label><input type="tel" id="e-tel"></div>
+      </div>
+      <div class="form-row"><div class="f"><label>Email</label><input type="email" id="e-email"></div></div>
+    </div>
+    <div class="form-section" style="margin-bottom:12px">
+      <div class="form-section-title">Membresía</div>
+      <div class="form-row">
+        <div class="f"><label>Plan *</label>
+          <select id="e-plan">
+            <option>Mensual</option><option>Trimestral</option>
+            <option>Semestral</option><option>Anual</option><option>Por clase</option>
+          </select>
+        </div>
+        <div class="f"><label>Monto (ARS)</label><input type="number" id="e-monto"></div>
+      </div>
+      <div class="form-row">
+        <div class="f"><label>Fecha de pago</label><input type="date" id="e-fecha"></div>
+        <div class="f"><label>Vencimiento</label><input type="date" id="e-venc"></div>
+      </div>
+    </div>
+    <div class="form-section" style="margin-bottom:12px">
+      <div class="form-section-title">Notas</div>
+      <div class="form-row"><div class="f"><textarea id="e-notas" placeholder="Observaciones..."></textarea></div></div>
+    </div>
+    <button class="btn-guardar" id="btn-edit-save" onclick="saveEdit()" style="margin-bottom:0">
+      <span class="mini-spinner" id="edit-spin"></span>
+      <span id="edit-txt">GUARDAR CAMBIOS</span>
+    </button>
+    <button class="btn-delete" onclick="deleteSocio()">🗑 ELIMINAR SOCIO</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const USERS = {
+  'admin':     'gym2024',
+  'recepcion': 'recepcion123'
+};
+// ────────────────────────────────────────────────────────────
+
+let SCRIPT_URL  = localStorage.getItem('gym_script_url') || '';
+let socios      = JSON.parse(localStorage.getItem('gym_socios')  || '[]');
+let pendingSync = JSON.parse(localStorage.getItem('gym_pending') || '[]');
+let activeFilter = 'todos';
+let isOnline     = navigator.onLine;
+
+// ── ONLINE/OFFLINE
+window.addEventListener('online',  () => { isOnline=true;  updateOnlineUI(); triggerSync(); });
+window.addEventListener('offline', () => { isOnline=false; updateOnlineUI(); });
+
+function updateOnlineUI() {
+  document.getElementById('offline-banner').classList.toggle('show', !isOnline);
+  if (!SCRIPT_URL) return;
+  setSyncState(isOnline ? (pendingSync.length ? 'syncing' : 'synced') : 'offline',
+               isOnline ? (pendingSync.length ? 'Pendiente' : 'Sincronizado') : 'Sin conexión');
+}
+
+// ── SERVICE WORKER
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+
+// ── LOGIN
+document.getElementById('l-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('btn-login').addEventListener('click', doLogin);
+
+function doLogin() {
+  const u = document.getElementById('l-user').value.trim();
+  const p = document.getElementById('l-pass').value;
+  const err = document.getElementById('l-err');
+  if (USERS[u] && USERS[u] === p) {
+    sessionStorage.setItem('gym_u', u);
+    err.textContent = '';
+    if (!SCRIPT_URL) showScreen('s-setup');
+    else showApp();
+  } else {
+    err.textContent = '⚠ Usuario o contraseña incorrectos';
+    document.getElementById('l-pass').value = '';
+    setTimeout(() => { err.textContent = ''; }, 3000);
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem('gym_u');
+  showScreen('s-login');
+  document.getElementById('l-pass').value = '';
+}
+
+function showScreen(id) {
+  ['s-login','s-setup','s-app'].forEach(s =>
+    document.getElementById(s).classList.toggle('hidden', s !== id)
+  );
+}
+
+window.onload = () => {
+  const u = sessionStorage.getItem('gym_u');
+  if (u) { if (!SCRIPT_URL) showScreen('s-setup'); else showApp(); }
+  updateOnlineUI();
+};
+
+// ── SETUP
+function saveSetup() {
+  const url = document.getElementById('setup-url').value.trim();
+  if (!url || !url.startsWith('https://script.google.com')) {
+    showToast('Pegá una URL válida de Apps Script', 'error'); return;
+  }
+  SCRIPT_URL = url;
+  localStorage.setItem('gym_script_url', url);
+  showApp();
+  showToast('✓ Conectado con Google Sheets', 'success');
+  setTimeout(loadFromSheet, 800);
+}
+
+function skipSetup() { showApp(); }
+
+// ── APP
+function showApp() {
+  showScreen('s-app');
+  document.getElementById('f-fecha').valueAsDate = new Date();
+  renderSocios();
+  updatePendingUI();
+  updateStats();
+  updateOnlineUI();
+  if (SCRIPT_URL && isOnline) setTimeout(loadFromSheet, 600);
+  setTimeout(pollAlerts, 2000);
+}
+
+// ── TABS
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'stats') setTimeout(animateBars, 100);
+  });
+});
+
+// ── GUARDAR SOCIO
+function guardarSocio() {
+  let hasErr = false;
+  ['f-nombre','f-plan','f-fecha'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el.value.trim()) { el.classList.add('err'); hasErr = true; }
+    else el.classList.remove('err');
+  });
+  if (hasErr) { showToast('Completá los campos requeridos *', 'error'); return; }
+
+  const btn  = document.getElementById('btn-guardar');
+  const spin = document.getElementById('mini-spin');
+  const txt  = document.getElementById('btn-txt');
+  btn.disabled = true; spin.style.display = 'block'; txt.textContent = 'GUARDANDO...';
+
+  const venc = document.getElementById('f-venc').value;
+  const record = {
+    id:              'r' + Date.now(),
+    nombre:          document.getElementById('f-nombre').value.trim(),
+    dni:             document.getElementById('f-dni').value.trim(),
+    telefono:        document.getElementById('f-tel').value.trim(),
+    email:           document.getElementById('f-email').value.trim(),
+    plan:            document.getElementById('f-plan').value,
+    monto:           document.getElementById('f-monto').value,
+    fecha_pago:      document.getElementById('f-fecha').value,
+    vencimiento:     venc,
+    notas:           document.getElementById('f-notas').value.trim(),
+    fecha_registro:  new Date().toLocaleString('es-AR'),
+    status:          calcStatus(venc),
+    synced:          false
+  };
+
+  setTimeout(() => {
+    socios.unshift(record);
+    pendingSync.push(record);
+    saveLocal(); updatePendingUI(); updateStats();
+    btn.disabled = false; spin.style.display = 'none'; txt.textContent = 'GUARDAR SOCIO';
+    limpiarForm();
+    showToast(isOnline ? '✓ Guardado · sincronizando...' : '✓ Guardado · se sincronizará al conectarse', 'success');
+    if (isOnline) triggerSync();
+  }, 600);
+}
+
+function calcStatus(v) {
+  if (!v) return 'pendiente';
+  const n = new Date(); n.setHours(0,0,0,0);
+  return new Date(v + 'T00:00:00') >= n ? 'vigente' : 'vencido';
+}
+
+function limpiarForm() {
+  ['f-nombre','f-dni','f-tel','f-email','f-monto','f-notas','f-venc'].forEach(id => {
+    document.getElementById(id).value = '';
+    document.getElementById(id).classList.remove('err');
+  });
+  document.getElementById('f-plan').value = '';
+  document.getElementById('f-plan').classList.remove('err');
+  document.getElementById('f-fecha').valueAsDate = new Date();
+}
+
+// ── SYNC
+function setSyncState(state, label) {
+  document.getElementById('sync-badge').className = 'sync-badge ' + state;
+  document.getElementById('sync-label').textContent = label;
+}
+
+async function triggerSync() {
+  if (!SCRIPT_URL) { showScreen('s-setup'); return; }
+  if (!isOnline)   { showToast('Sin conexión', 'warn'); return; }
+  if (!pendingSync.length) { setSyncState('synced','Sincronizado'); return; }
+
+  setSyncState('syncing', 'Sincronizando...');
   try {
-    const payload = JSON.parse(e.postData.contents);
-    const action  = payload.action;
-    if (action === 'sync_socios') return handleSyncSocios(payload.data);
-    if (action === 'sync_ventas') return handleSyncVentas(payload.data);
-    if (action === 'get_all')     return handleGetAll();
-    return resp({ ok: false, error: 'Acción desconocida: ' + action });
-  } catch(err) {
-    return resp({ ok: false, error: err.toString() });
+    await apiCall({ action: 'sync_socios', data: pendingSync });
+    pendingSync = []; socios.forEach(s => s.synced = true);
+    saveLocal(); setSyncState('synced','Sincronizado');
+    updatePendingUI(); renderSocios();
+    showToast('✓ Sincronizado con Google Sheets', 'success');
+  } catch(e) {
+    setSyncState('error','Error de sync');
+    showToast('No se pudo sincronizar', 'error');
   }
 }
 
-function doGet(e) {
-  return handleGetAll();
+async function loadFromSheet() {
+  if (!SCRIPT_URL || !isOnline) return;
+  setSyncState('syncing', 'Cargando...');
+  try {
+    const r = await apiCall({ action: 'get_all' });
+    if (!r.ok || !r.data || !r.data.Socios) { setSyncState('synced','Sincronizado'); return; }
+
+    // Build map of sheet data by ID
+    const sheetMap = {};
+    r.data.Socios.forEach(row => {
+      const id = String(row['ID'] || '').trim();
+      if (!id) return;
+      sheetMap[id] = {
+        id, nombre: row['Nombre'], dni: row['DNI'], telefono: row['Teléfono'],
+        email: row['Email'], plan: row['Plan'], monto: row['Monto'],
+        fecha_pago: row['Fecha Pago'], vencimiento: row['Vencimiento'],
+        notas: row['Notas'], fecha_registro: row['Fecha Registro'],
+        status: row['Estado'] || calcStatus(row['Vencimiento']), synced: true
+      };
+    });
+
+    // Keep local-only records that haven't synced yet, replace everything else
+    const localOnly = socios.filter(s => !s.synced && !sheetMap[s.id]);
+    socios = [...Object.values(sheetMap), ...localOnly];
+
+    saveLocal(); renderSocios(); updateStats();
+    setSyncState('synced','Sincronizado');
+  } catch(e) { setSyncState('error','Error'); }
 }
 
-// Needed for CORS — Apps Script GET requests don't have preflight issues
-function addCorsHeaders(output) {
-  return output;  // ContentService doesn't support custom headers, but GET works natively
+async function apiCall(payload) {
+  // Google Apps Script doesn't support CORS preflight (OPTIONS).
+  // GET requests work fine; POST must use no-cors (fire-and-forget).
+  if (payload.action === 'get_all') {
+    const url = SCRIPT_URL + '?action=get_all&t=' + Date.now();
+    const res  = await fetch(url, { method: 'GET' });
+    return await res.json();
+  } else {
+    // no-cors POST: response is opaque, but the write still executes on Google's side
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    return { ok: true };
+  }
 }
 
-// ── SOCIOS ──────────────────────────────────────────────────
-function handleSyncSocios(rows) {
-  const headers = ['ID','Fecha Registro','Nombre','DNI','Teléfono','Email',
-                   'Plan','Monto','Fecha Pago','Vencimiento','Estado','Notas'];
-  const sheet = getOrCreateSheet(SHEET_SOCIOS, headers);
-  rows.forEach(s => upsertRow(sheet, s.id, [
-    s.id, s.fecha_registro, s.nombre, s.dni, s.telefono, s.email,
-    s.plan, s.monto, s.fecha_pago, s.vencimiento, s.status, s.notas
-  ]));
-  return resp({ ok: true, synced: rows.length });
+function saveLocal() {
+  localStorage.setItem('gym_socios',  JSON.stringify(socios));
+  localStorage.setItem('gym_pending', JSON.stringify(pendingSync));
 }
 
-// ── VENTAS ───────────────────────────────────────────────────
-function handleSyncVentas(rows) {
-  const headers = ['ID','Fecha','Socio','Plan','Monto','Vencimiento anterior','Nuevo vencimiento','Notas'];
-  const sheet = getOrCreateSheet(SHEET_VENTAS, headers);
-  rows.forEach(v => {
-    const data   = sheet.getDataRange().getValues();
-    const exists = data.some(row => row[0] === v.id);
-    if (!exists) sheet.appendRow([v.id, v.fecha, v.socio, v.plan, v.monto, '', '', v.notas || '']);
+function updatePendingUI() {
+  const n = pendingSync.length;
+  document.getElementById('pending-banner').style.display = n ? 'flex' : 'none';
+  if (n) document.getElementById('pending-txt').textContent = `⟳ ${n} registro${n>1?'s':''} pendiente${n>1?'s':''}`;
+  const badge = document.getElementById('pending-badge');
+  badge.style.display = n ? 'flex' : 'none';
+  if (n) badge.textContent = n;
+}
+
+// ── RENDER SOCIOS
+function setFilter(btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); activeFilter = btn.dataset.filter; renderSocios();
+}
+
+function renderSocios() {
+  const q    = document.getElementById('search-inp').value.toLowerCase();
+  const list = socios.filter(s => {
+    const mQ = !q || s.nombre.toLowerCase().includes(q) || (s.dni||'').includes(q) || (s.telefono||'').includes(q);
+    const mF = activeFilter === 'todos' || s.status === activeFilter;
+    return mQ && mF;
   });
-  return resp({ ok: true, synced: rows.length });
+
+  const c = document.getElementById('socios-list');
+  if (!list.length) {
+    c.innerHTML = `<div class="empty-state"><div class="big">🏋️</div><p>No se encontraron socios</p></div>`;
+    return;
+  }
+
+  const now = new Date(); now.setHours(0,0,0,0);
+
+  c.innerHTML = list.map(s => {
+    const venc     = s.vencimiento ? new Date(s.vencimiento + 'T00:00:00') : null;
+    const daysLeft = venc ? Math.ceil((venc - now) / 86400000) : null;
+    const alertVenc = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+
+    return `<div class="socio-card ${s.status}">
+      <div class="socio-top">
+        <div class="socio-name">${s.nombre}</div>
+        <div class="socio-badges">
+          <span class="socio-plan">${s.plan}</span>
+          <span class="status-pill ${s.status}">${s.status}</span>
+        </div>
+      </div>
+      <div class="socio-meta">
+        ${s.telefono   ? `<span class="socio-meta-item">📱 ${s.telefono}</span>` : ''}
+        ${s.dni        ? `<span class="socio-meta-item">🪪 ${s.dni}</span>` : ''}
+        ${s.monto      ? `<span class="socio-meta-item">💵 $${Number(s.monto).toLocaleString('es-AR')}</span>` : ''}
+        ${s.vencimiento? `<span class="socio-meta-item">📅 ${formatDate(s.vencimiento)}</span>` : ''}
+      </div>
+      <div class="socio-footer">
+        <span>${s.synced ? '✓ Sincronizado' : '⟳ Pendiente de sync'}</span>
+        ${alertVenc ? `<span class="venc-alert">⚠ Vence en ${daysLeft} día${daysLeft===1?'':'s'}</span>` : ''}
+        <button class="btn-edit-card" onclick="openEditModal('${s.id}')">✏ Editar</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-// ── GET ALL ──────────────────────────────────────────────────
-function handleGetAll() {
-  const ss     = SpreadsheetApp.getActiveSpreadsheet();
-  const result = {};
+function formatDate(d) {
+  if (!d) return '';
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
 
-  [SHEET_SOCIOS, SHEET_VENTAS].forEach(name => {
-    const sheet = ss.getSheetByName(name);
-    if (!sheet) { result[name] = []; return; }
-    const data = sheet.getDataRange().getValues();
-    if (data.length < 2) { result[name] = []; return; }
+// ── STATS
+function updateStats() {
+  const total    = socios.length;
+  const vigentes = socios.filter(s => s.status === 'vigente').length;
+  const vencidos = socios.filter(s => s.status === 'vencido').length;
+  const ingresos = socios.reduce((a,s) => a + Number(s.monto||0), 0);
 
-    // Find the real header row: the row where first cell is exactly 'ID'
-    let headerIdx = -1;
-    for (let i = 0; i < data.length; i++) {
-      if (String(data[i][0]).trim() === 'ID') { headerIdx = i; break; }
-    }
-    if (headerIdx < 0 || headerIdx >= data.length - 1) { result[name] = []; return; }
-
-    const headers = data[headerIdx].map(h => String(h).trim());
-    result[name]  = data.slice(headerIdx + 1)
-      .filter(row => row[0] && String(row[0]).trim() !== '')
-      .map(row => {
-        const obj = {};
-        headers.forEach((h, i) => { if (h) obj[h] = row[i]; });
-        return obj;
-      });
+  const now = new Date(); now.setHours(0,0,0,0);
+  const proxVenc = socios.filter(s => {
+    if (!s.vencimiento || s.status !== 'vigente') return false;
+    const d = Math.ceil((new Date(s.vencimiento+'T00:00:00') - now) / 86400000);
+    return d >= 0 && d <= 7;
   });
 
-  return resp({ ok: true, data: result });
+  document.getElementById('stats-sub').textContent =
+    `Actualizado ${new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Total socios</div>
+      <div class="stat-value">${total}</div>
+      <div class="stat-sub">registrados</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Vigentes</div>
+      <div class="stat-value" style="color:var(--green)">${vigentes}</div>
+      <div class="stat-sub">${total ? Math.round(vigentes/total*100) : 0}% del total</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Vencidos</div>
+      <div class="stat-value" style="color:var(--red)">${vencidos}</div>
+      <div class="stat-sub">sin renovar</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Ingresos</div>
+      <div class="stat-value" style="font-size:28px">$${(ingresos/1000).toFixed(0)}K</div>
+      <div class="stat-sub">total registrado</div>
+    </div>
+  `;
+
+  // Vencimientos próximos
+  const vencSec = document.getElementById('venc-section');
+  if (proxVenc.length) {
+    vencSec.style.display = 'block';
+    document.getElementById('venc-list').innerHTML = proxVenc
+      .sort((a,b) => new Date(a.vencimiento) - new Date(b.vencimiento))
+      .map(s => {
+        const d = Math.ceil((new Date(s.vencimiento+'T00:00:00') - now) / 86400000);
+        return `<div class="venc-item">
+          <div>
+            <div class="venc-item-name">${s.nombre}</div>
+            <div style="font-size:11px;color:var(--muted2)">${s.plan} · ${formatDate(s.vencimiento)}</div>
+          </div>
+          <div class="venc-item-days">${d === 0 ? 'HOY' : `${d} día${d===1?'':'s'}`}</div>
+        </div>`;
+      }).join('');
+  } else {
+    vencSec.style.display = 'none';
+  }
 }
 
-// ── HELPERS ──────────────────────────────────────────────────
-function getOrCreateSheet(name, headers) {
-  const ss  = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    sheet = ss.insertSheet(name);
-    sheet.appendRow(headers);
-    sheet.getRange(1, 1, 1, headers.length)
-      .setFontWeight('bold')
-      .setBackground('#1a1a1a')
-      .setFontColor('#e8ff47');
-    sheet.setFrozenRows(1);
-    return sheet;
-  }
-  // Sheet exists — make sure it has an 'ID' header row somewhere
-  const data = sheet.getDataRange().getValues();
-  const hasHeader = data.some(row => String(row[0]).trim() === 'ID');
-  if (!hasHeader) {
-    // Prepend headers at top
-    sheet.insertRowBefore(1);
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.getRange(1, 1, 1, headers.length)
-      .setFontWeight('bold')
-      .setBackground('#1a1a1a')
-      .setFontColor('#e8ff47');
-    sheet.setFrozenRows(1);
-  }
-  return sheet;
+const PLAN_COLORS = ['var(--accent)','var(--blue)','var(--green)','#cc88ff','var(--orange)'];
+
+function animateBars() {
+  updateStats();
+
+  // Por plan
+  const pc = {};
+  socios.forEach(s => { pc[s.plan] = (pc[s.plan]||0)+1; });
+  const maxP = Math.max(...Object.values(pc), 1);
+  document.getElementById('bar-planes').innerHTML =
+    Object.entries(pc).sort((a,b)=>b[1]-a[1]).map(([plan,cnt],i) => `
+      <div class="bar-row">
+        <div class="bar-label">${plan}</div>
+        <div class="bar-track">
+          <div class="bar-fill c${(i%4)+1}" style="width:0" data-w="${Math.round(cnt/maxP*100)}">
+            <span class="bar-val">${cnt}</span>
+          </div>
+        </div>
+      </div>`).join('');
+
+  // Por mes
+  const now = new Date();
+  const meses = Array.from({length:4}, (_,i) => {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    return { key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,
+             label: d.toLocaleDateString('es-AR',{month:'short',year:'2-digit'}) };
+  }).reverse();
+  const ing = {}; meses.forEach(m => { ing[m.key] = 0; });
+  socios.forEach(s => {
+    if (!s.fecha_pago || !s.monto) return;
+    const mk = s.fecha_pago.slice(0,7);
+    if (ing[mk] !== undefined) ing[mk] += Number(s.monto);
+  });
+  const maxI = Math.max(...meses.map(m=>ing[m.key]), 1);
+  document.getElementById('bar-ingresos').innerHTML =
+    meses.map((m,i) => `
+      <div class="bar-row">
+        <div class="bar-label">${m.label}</div>
+        <div class="bar-track">
+          <div class="bar-fill c${(i%3)+1}" style="width:0" data-w="${Math.round(ing[m.key]/maxI*100)}">
+            <span class="bar-val">$${(ing[m.key]/1000).toFixed(0)}K</span>
+          </div>
+        </div>
+      </div>`).join('');
+
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.bar-fill').forEach(el => { el.style.width = el.dataset.w + '%'; });
+  });
 }
 
-function upsertRow(sheet, id, rowData) {
-  const data = sheet.getDataRange().getValues();
-  // Find header row index
-  let headerIdx = -1;
-  for (let i = 0; i < data.length; i++) {
-    if (String(data[i][0]).trim() === 'ID') { headerIdx = i; break; }
-  }
-  const startRow = headerIdx >= 0 ? headerIdx + 1 : 1;
-  // Update if exists
-  for (let i = startRow; i < data.length; i++) {
-    if (String(data[i][0]) === String(id)) {
-      sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
-      return;
+
+
+// ── ALERTAS ──────────────────────────────────────────────
+let alertas = [];
+let seenAlertIds = new Set(JSON.parse(localStorage.getItem('gym_seen_alerts') || '[]'));
+
+async function pollAlerts() {
+  if (!SCRIPT_URL || !isOnline) return;
+  try {
+    const url = SCRIPT_URL + '?action=get_all&t=' + Date.now();
+    const res  = await fetch(url, { method: 'GET' });
+    const r    = await res.json();
+    if (!r.ok || !r.data || !r.data.Alertas) return;
+
+    alertas = r.data.Alertas.map(a => ({
+      id:          String(a['ID'] || ''),
+      fecha:       a['Fecha']       || '',
+      nombre:      a['Nombre']      || '',
+      plan:        a['Plan']        || '',
+      vencimiento: a['Vencimiento'] || '',
+      leida:       String(a['Leída'] || 'no') === 'si'
+    })).filter(a => a.id);
+
+    const unread = alertas.filter(a => !seenAlertIds.has(a.id) && !a.leida);
+    const bell   = document.getElementById('alert-bell');
+    const count  = document.getElementById('alert-count');
+
+    if (unread.length > 0) {
+      bell.style.display = 'block';
+      count.textContent  = unread.length;
+      // Show toast for newest alert
+      const newest = unread[unread.length - 1];
+      showToast(`🔔 ${newest.nombre} — membresía vencida`, 'error');
+    } else {
+      bell.style.display = alertas.length ? 'block' : 'none';
+      count.style.display = 'none';
     }
+  } catch(e) {}
+}
+
+function openAlerts() {
+  const list = document.getElementById('alerts-list');
+  if (!alertas.length) {
+    list.innerHTML = '<div class="empty-state"><div class="big">✓</div><p>Sin alertas recientes</p></div>';
+  } else {
+    list.innerHTML = [...alertas].reverse().map(a => {
+      const unread = !seenAlertIds.has(a.id) && !a.leida;
+      return `<div style="padding:14px;margin-bottom:8px;background:${unread ? 'rgba(255,68,68,.08)' : 'var(--card)'};border:1px solid ${unread ? 'rgba(255,68,68,.3)' : 'var(--border)'};border-left:3px solid ${unread ? 'var(--red)' : 'var(--border2)'}">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.08em;color:${unread ? 'var(--red)' : 'var(--muted2)'}">${a.nombre}</div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:4px">${a.plan} · Venció el ${a.vencimiento}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">${a.fecha}</div>
+      </div>`;
+    }).join('');
   }
-  // Insert new
-  sheet.appendRow(rowData);
+  // Mark as seen locally
+  alertas.forEach(a => seenAlertIds.add(a.id));
+  localStorage.setItem('gym_seen_alerts', JSON.stringify([...seenAlertIds]));
+  document.getElementById('alert-count').style.display = 'none';
+  document.getElementById('alerts-modal').classList.add('show');
 }
 
-function resp(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
+function closeAlertsModal(e) {
+  if (e && e.target !== document.getElementById('alerts-modal')) return;
+  document.getElementById('alerts-modal').classList.remove('show');
 }
 
-function doOptions(e) {
-  return ContentService
-    .createTextOutput('')
-    .setMimeType(ContentService.MimeType.TEXT);
+function markAllRead() {
+  alertas.forEach(a => { a.leida = true; seenAlertIds.add(a.id); });
+  localStorage.setItem('gym_seen_alerts', JSON.stringify([...seenAlertIds]));
+  document.getElementById('alert-count').style.display = 'none';
+  closeAlertsModal();
+  showToast('✓ Alertas marcadas como leídas', 'success');
 }
+
+// Poll every 30 seconds
+setInterval(pollAlerts, 30000);
+
+// ── EDIT MODAL
+let editingId = null;
+
+function openEditModal(id) {
+  const s = socios.find(x => x.id === id);
+  if (!s) return;
+  editingId = id;
+  document.getElementById('e-nombre').value = s.nombre || '';
+  document.getElementById('e-dni').value    = s.dni     || '';
+  document.getElementById('e-tel').value    = s.telefono|| '';
+  document.getElementById('e-email').value  = s.email   || '';
+  document.getElementById('e-plan').value   = s.plan    || 'Mensual';
+  document.getElementById('e-monto').value  = s.monto   || '';
+  document.getElementById('e-fecha').value  = s.fecha_pago   || '';
+  document.getElementById('e-venc').value   = s.vencimiento  || '';
+  document.getElementById('e-notas').value  = s.notas   || '';
+  document.getElementById('edit-modal').classList.add('show');
+}
+
+function closeEditModal(e) {
+  if (e && e.target !== document.getElementById('edit-modal')) return;
+  document.getElementById('edit-modal').classList.remove('show');
+  editingId = null;
+}
+
+function saveEdit() {
+  if (!editingId) return;
+  const nombre = document.getElementById('e-nombre').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+
+  const btn  = document.getElementById('btn-edit-save');
+  const spin = document.getElementById('edit-spin');
+  const txt  = document.getElementById('edit-txt');
+  btn.disabled = true; spin.style.display = 'block'; txt.textContent = 'GUARDANDO...';
+
+  const venc = document.getElementById('e-venc').value;
+  const idx  = socios.findIndex(s => s.id === editingId);
+  if (idx < 0) return;
+
+  socios[idx] = {
+    ...socios[idx],
+    nombre,
+    dni:        document.getElementById('e-dni').value.trim(),
+    telefono:   document.getElementById('e-tel').value.trim(),
+    email:      document.getElementById('e-email').value.trim(),
+    plan:       document.getElementById('e-plan').value,
+    monto:      document.getElementById('e-monto').value,
+    fecha_pago: document.getElementById('e-fecha').value,
+    vencimiento: venc,
+    notas:      document.getElementById('e-notas').value.trim(),
+    status:     calcStatus(venc),
+    synced:     false
+  };
+
+  // Add to pending sync
+  const existing = pendingSync.findIndex(p => p.id === editingId);
+  if (existing >= 0) pendingSync[existing] = socios[idx];
+  else pendingSync.push(socios[idx]);
+
+  setTimeout(() => {
+    saveLocal(); updatePendingUI(); renderSocios(); updateStats();
+    btn.disabled = false; spin.style.display = 'none'; txt.textContent = 'GUARDAR CAMBIOS';
+    document.getElementById('edit-modal').classList.remove('show');
+    editingId = null;
+    showToast(isOnline ? '✓ Guardado · sincronizando...' : '✓ Guardado · se sincronizará al conectarse', 'success');
+    if (isOnline) triggerSync();
+  }, 500);
+}
+
+function deleteSocio() {
+  if (!editingId) return;
+  const s = socios.find(x => x.id === editingId);
+  if (!confirm(`¿Eliminar a ${s?.nombre}? Esta acción no se puede deshacer.`)) return;
+  socios = socios.filter(x => x.id !== editingId);
+  pendingSync = pendingSync.filter(x => x.id !== editingId);
+  saveLocal(); updatePendingUI(); renderSocios(); updateStats();
+  document.getElementById('edit-modal').classList.remove('show');
+  editingId = null;
+  showToast('Socio eliminado', 'warn');
+}
+
+// ── TOAST
+let toastT;
+function showToast(msg, type='info') {
+  clearTimeout(toastT);
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  toastT = setTimeout(() => { t.className = ''; }, 3500);
+}
+</script>
+</body>
+</html>
