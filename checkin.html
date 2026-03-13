@@ -454,6 +454,18 @@ html, body {
     <label class="setup-inp-label">URL de Google Apps Script</label>
     <input class="setup-inp" id="ci-url" type="url" placeholder="https://script.google.com/macros/s/...">
     <button class="btn-setup" onclick="saveCheckinConfig()">GUARDAR Y CONTINUAR</button>
+    <div style="margin-top:20px;border-top:1px solid #222;padding-top:20px;">
+      <div class="setup-title" style="font-size:20px;margin-bottom:6px">Alertas por Telegram <span style="font-size:13px;color:var(--muted2);font-family:'Barlow',sans-serif;font-weight:400">(opcional)</span></div>
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:14px;line-height:1.7">
+        Para recibir alertas cuando un socio vencido intente entrar.<br>
+        Creá un bot en <strong style="color:var(--text)">@BotFather</strong> en Telegram y pegá los datos acá.
+      </div>
+      <label class="setup-inp-label">Token del bot</label>
+      <input class="setup-inp" id="ci-tg-token" type="text" placeholder="1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+      <label class="setup-inp-label" style="margin-top:10px">Chat ID</label>
+      <input class="setup-inp" id="ci-tg-chat" type="text" placeholder="123456789">
+      <button class="btn-setup" style="margin-top:10px;background:#229ED9" onclick="saveTelegramConfig()">GUARDAR TELEGRAM</button>
+    </div>
     <div class="setup-alt" onclick="loadDemoMode()">Usar modo demo (sin Sheets)</div>
   </div>
 </div>
@@ -476,6 +488,22 @@ html, body {
     <button class="btn-reg-fp" id="btn-reg-fp" onclick="registerFingerprint()">
       👆 REGISTRAR HUELLA
     </button>
+
+    <div style="margin-top:24px;border-top:1px solid #222;padding-top:20px;">
+      <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:14px;font-weight:600">Configurar Telegram</div>
+      <label class="setup-inp-label">Token del bot</label>
+      <input class="setup-inp" id="tg-token-inp" type="text" placeholder="Token de BotFather">
+      <label class="setup-inp-label" style="margin-top:8px">Chat ID</label>
+      <input class="setup-inp" id="tg-chat-inp" type="text" placeholder="Tu Chat ID">
+      <button class="btn-setup" style="margin-top:10px;background:#229ED9;font-size:16px" onclick="saveTelegramFromModal()">GUARDAR</button>
+      <div id="tg-status" style="font-size:11px;color:var(--muted2);margin-top:8px;text-align:center"></div>
+    </div>
+
+    <div style="margin-top:16px;border-top:1px solid #222;padding-top:16px;">
+      <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;font-weight:600">Apps Script URL</div>
+      <input class="setup-inp" id="modal-script-url" type="url" placeholder="https://script.google.com/...">
+      <button class="btn-setup" style="margin-top:8px;font-size:16px" onclick="saveScriptFromModal()">GUARDAR URL</button>
+    </div>
   </div>
 </div>
 
@@ -724,6 +752,60 @@ function formatDate(d) {
 }
 
 // ── REGISTER FINGERPRINT ──
+function saveTelegramFromModal() {
+  const token  = document.getElementById('tg-token-inp').value.trim();
+  const chatId = document.getElementById('tg-chat-inp').value.trim();
+  if (!token || !chatId) { showToast('Completá los dos campos', 'err'); return; }
+  TG_TOKEN   = token;
+  TG_CHAT_ID = chatId;
+  localStorage.setItem('gym_tg_token',   token);
+  localStorage.setItem('gym_tg_chat_id', chatId);
+  document.getElementById('tg-status').textContent = '✓ Guardado';
+  showToast('✓ Telegram actualizado', 'ok');
+  // Test message
+  testTelegram();
+}
+
+async function testTelegram() {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ chat_id: TG_CHAT_ID, text: '✅ GymAdmin conectado correctamente.' })
+    });
+    const r = await res.json();
+    if (r.ok) {
+      document.getElementById('tg-status').textContent = '✓ Mensaje de prueba enviado a Telegram';
+    } else {
+      document.getElementById('tg-status').textContent = '⚠ Error: ' + (r.description || 'revisar token y chat ID');
+    }
+  } catch(e) {
+    document.getElementById('tg-status').textContent = '⚠ No se pudo conectar';
+  }
+}
+
+function saveScriptFromModal() {
+  const url = document.getElementById('modal-script-url').value.trim();
+  if (!url || !url.startsWith('https://script.google.com')) {
+    showToast('URL inválida', 'err'); return;
+  }
+  scriptUrl = url;
+  localStorage.setItem(SCRIPT_URL_KEY, url);
+  showToast('✓ URL guardada', 'ok');
+  syncSocios();
+}
+
+function saveTelegramConfig() {
+  const token  = document.getElementById('ci-tg-token') ? document.getElementById('ci-tg-token').value.trim() : '';
+  const chatId = document.getElementById('ci-tg-chat')  ? document.getElementById('ci-tg-chat').value.trim()  : '';
+  if (!token || !chatId) { showToast('Completá token y Chat ID', 'err'); return; }
+  TG_TOKEN   = token;
+  TG_CHAT_ID = chatId;
+  localStorage.setItem('gym_tg_token',   token);
+  localStorage.setItem('gym_tg_chat_id', chatId);
+  showToast('✓ Telegram configurado', 'ok');
+}
+
 function openRegModal() {
   loadSociosFromStorage();
   document.getElementById('reg-modal').classList.add('show');
@@ -732,6 +814,15 @@ function openRegModal() {
   document.getElementById('reg-selected').style.display = 'none';
   document.getElementById('btn-reg-fp').style.display = 'none';
   selectedSocio = null;
+  // Pre-fill config fields
+  if (document.getElementById('tg-token-inp')) {
+    document.getElementById('tg-token-inp').value = TG_TOKEN || '';
+    document.getElementById('tg-chat-inp').value  = TG_CHAT_ID || '';
+    document.getElementById('tg-status').textContent = TG_TOKEN ? '✓ Configurado' : '';
+  }
+  if (document.getElementById('modal-script-url')) {
+    document.getElementById('modal-script-url').value = scriptUrl || '';
+  }
 }
 
 function closeRegModal() {
@@ -809,8 +900,8 @@ async function registerFingerprint() {
 }
 
 // ── NOTIFICAR ADMIN ──
-const TG_TOKEN   = '8658034455:AAGx8zG-qSOU-iDZAtO6AX5dfXueXZb5RJk';
-const TG_CHAT_ID = '6654326815';
+let TG_TOKEN   = localStorage.getItem('gym_tg_token')  || '';
+let TG_CHAT_ID = localStorage.getItem('gym_tg_chat_id') || '';
 
 function playDeniedSound() {
   try {
