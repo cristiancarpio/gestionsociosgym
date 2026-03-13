@@ -580,7 +580,11 @@ async function syncSocios() {
 function calcStatus(v) {
   if (!v) return 'pendiente';
   const n = new Date(); n.setHours(0,0,0,0);
-  return new Date(v + 'T00:00:00') >= n ? 'vigente' : 'vencido';
+  const d = new Date(String(v));
+  if (isNaN(d.getTime())) return 'pendiente';
+  // Compare date only (ignore time)
+  const dOnly = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return dOnly >= n ? 'vigente' : 'vencido';
 }
 
 // ── CHECK-IN FLOW ──
@@ -627,7 +631,7 @@ async function startCheckin() {
 
     // Check membership
     const now  = new Date(); now.setHours(0,0,0,0);
-    const venc = socio.vencimiento ? new Date(socio.vencimiento + 'T00:00:00') : null;
+    const venc = socio.vencimiento ? new Date(String(socio.vencimiento)) : null;
     const daysLeft = venc ? Math.ceil((venc - now) / 86400000) : null;
 
     if (socio.status === 'vigente' && daysLeft !== null && daysLeft > 0) {
@@ -694,8 +698,19 @@ function showResult(type, icon, name, detail) {
 
 function formatDate(d) {
   if (!d) return '';
-  const [y,m,day] = d.split('-');
-  return `${day}/${m}/${y}`;
+  // Handle JS Date objects from Google Sheets (e.g. "2026-03-21T00:00:00.000Z")
+  const str = String(d);
+  const date = new Date(str);
+  if (!isNaN(date.getTime())) {
+    const y   = date.getUTCFullYear();
+    const m   = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${day}/${m}/${y}`;
+  }
+  // Fallback: plain YYYY-MM-DD string
+  const parts = str.split('-');
+  if (parts.length >= 3) return `${parts[2].slice(0,2)}/${parts[1]}/${parts[0]}`;
+  return str;
 }
 
 // ── REGISTER FINGERPRINT ──
