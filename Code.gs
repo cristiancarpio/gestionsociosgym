@@ -1,148 +1,812 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#080808">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>GymAdmin · Check-in</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080808;
+  --surface: #0f0f0f;
+  --card: #141414;
+  --border: #222;
+  --accent: #e8ff47;
+  --green: #00ff88;
+  --red: #ff3333;
+  --orange: #ff9944;
+  --text: #f0f0f0;
+  --muted: #444;
+  --muted2: #777;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+
+html, body {
+  height: 100%; width: 100%;
+  font-family: 'Barlow', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ── IDLE SCREEN ── */
+#idle {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: var(--bg);
+  transition: opacity .4s;
+  cursor: pointer;
+}
+
+.idle-bg {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Animated grid lines */
+.idle-bg::before {
+  content: '';
+  position: absolute; inset: -50%;
+  background-image:
+    linear-gradient(rgba(232,255,71,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,255,71,.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: gridmove 20s linear infinite;
+}
+
+@keyframes gridmove {
+  0%   { transform: translate(0,0); }
+  100% { transform: translate(60px,60px); }
+}
+
+.idle-bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 60% at 50% 50%, transparent 40%, var(--bg) 100%);
+}
+
+.idle-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(48px, 12vw, 96px);
+  letter-spacing: .18em;
+  color: var(--accent);
+  position: relative; z-index: 1;
+  margin-bottom: 4px;
+}
+
+.idle-sub {
+  font-size: clamp(11px, 2vw, 14px);
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  position: relative; z-index: 1;
+  margin-bottom: clamp(48px, 10vw, 80px);
+}
+
+/* Fingerprint button */
+.fp-ring-wrap {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 24px;
+}
+
+.fp-ring {
+  width: clamp(140px, 28vw, 200px);
+  height: clamp(140px, 28vw, 200px);
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: border-color .3s;
+}
+
+.fp-ring::before {
+  content: '';
+  position: absolute; inset: -10px;
+  border-radius: 50%;
+  border: 1px solid rgba(232,255,71,.1);
+  animation: ringpulse 3s ease-in-out infinite;
+}
+
+.fp-ring::after {
+  content: '';
+  position: absolute; inset: -20px;
+  border-radius: 50%;
+  border: 1px solid rgba(232,255,71,.05);
+  animation: ringpulse 3s ease-in-out infinite .5s;
+}
+
+@keyframes ringpulse {
+  0%, 100% { opacity: 0; transform: scale(.95); }
+  50%       { opacity: 1; transform: scale(1.05); }
+}
+
+.fp-ring:hover { border-color: var(--accent); }
+.fp-ring:hover .fp-icon { color: var(--accent); }
+
+.fp-icon {
+  font-size: clamp(64px, 14vw, 96px);
+  color: var(--muted2);
+  transition: color .3s;
+  line-height: 1;
+}
+
+.fp-label {
+  font-size: clamp(12px, 2.5vw, 15px);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  text-align: center;
+}
+
+/* Clock */
+.idle-clock {
+  position: absolute;
+  bottom: clamp(24px, 5vw, 40px);
+  left: 50%; transform: translateX(-50%);
+  text-align: center;
+  z-index: 1;
+}
+
+.clock-time {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(32px, 8vw, 56px);
+  letter-spacing: .1em;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.clock-date {
+  font-size: clamp(10px, 2vw, 13px);
+  letter-spacing: .16em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* ── SCANNING ── */
+#scanning {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: var(--bg);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+
+#scanning.show { opacity: 1; pointer-events: all; }
+
+.scan-ring {
+  width: clamp(160px, 32vw, 220px);
+  height: clamp(160px, 32vw, 220px);
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  margin-bottom: 32px;
+}
+
+.scan-ring::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) 0deg, transparent 120deg);
+  animation: rotate 1s linear infinite;
+  mask: radial-gradient(transparent 65%, black 66%);
+  -webkit-mask: radial-gradient(transparent 65%, black 66%);
+}
+
+@keyframes rotate { to { transform: rotate(360deg); } }
+
+.scan-icon {
+  font-size: clamp(72px, 15vw, 100px);
+  color: var(--accent);
+  animation: scanpulse .8s ease-in-out infinite;
+}
+
+@keyframes scanpulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+.scan-label {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(20px, 4vw, 28px);
+  letter-spacing: .18em;
+  color: var(--accent);
+  text-align: center;
+}
+
+/* ── RESULT SCREEN ── */
+#result {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .4s;
+  padding: 24px;
+}
+
+#result.show { opacity: 1; pointer-events: all; }
+
+#result.ok   { background: #030e06; }
+#result.warn { background: #0e0800; }
+#result.err  { background: #0e0303; }
+
+.result-icon {
+  font-size: clamp(72px, 16vw, 120px);
+  margin-bottom: 16px;
+  animation: popIn .4s cubic-bezier(.34,1.56,.64,1);
+}
+
+@keyframes popIn {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.result-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(36px, 8vw, 72px);
+  letter-spacing: .1em;
+  text-align: center;
+  line-height: 1;
+  margin-bottom: 12px;
+  animation: slideUp .35s ease .1s both;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.result-status {
+  font-size: clamp(13px, 3vw, 18px);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 24px;
+  animation: slideUp .35s ease .2s both;
+}
+
+#result.ok   .result-name   { color: var(--green); }
+#result.ok   .result-status { color: rgba(0,255,136,.6); }
+#result.warn .result-name   { color: var(--orange); }
+#result.warn .result-status { color: rgba(255,153,68,.6); }
+#result.err  .result-name   { color: var(--red); }
+#result.err  .result-status { color: rgba(255,51,51,.6); }
+
+.result-detail {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  padding: 16px 28px;
+  font-size: clamp(12px, 2.5vw, 15px);
+  color: var(--muted2);
+  letter-spacing: .08em;
+  text-align: center;
+  animation: slideUp .35s ease .3s both;
+  max-width: 400px;
+}
+
+.result-bar {
+  position: absolute;
+  bottom: 0; left: 0;
+  height: 4px;
+}
+
+#result.ok   .result-bar { background: var(--green); }
+#result.warn .result-bar { background: var(--orange); }
+#result.err  .result-bar { background: var(--red); }
+
+/* ── SETUP / NO-SUPPORT ── */
+#setup-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.92);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.setup-card {
+  background: #141414;
+  border: 1px solid #333;
+  padding: 32px 28px;
+  max-width: 440px; width: 100%;
+  position: relative;
+}
+
+.setup-card::before { content:''; position:absolute; top:0; left:0; width:40px; height:3px; background:var(--accent); }
+
+.setup-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px; letter-spacing: .12em;
+  color: var(--accent); margin-bottom: 8px;
+}
+
+.setup-body { font-size: 13px; color: var(--muted2); line-height: 1.8; margin-bottom: 24px; }
+.setup-body strong { color: var(--text); }
+.setup-body code { background: #0a0a0a; color: var(--accent); padding: 2px 6px; font-size: 12px; }
+
+.setup-inp-label { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted2); margin-bottom: 8px; display: block; font-weight: 600; }
+.setup-inp { width: 100%; background: #0a0a0a; border: 1px solid #333; color: var(--text); padding: 12px 14px; font-family: 'Barlow', sans-serif; font-size: 13px; outline: none; transition: border-color .2s; margin-bottom: 12px; }
+.setup-inp:focus { border-color: var(--accent); }
+
+.btn-setup { width: 100%; background: var(--accent); color: #000; border: none; padding: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: .14em; cursor: pointer; margin-bottom: 12px; }
+.setup-alt { font-size: 12px; color: var(--muted2); text-align: center; letter-spacing: .06em; cursor: pointer; }
+.setup-alt:hover { color: var(--text); }
+
+/* ── REGISTER MODAL ── */
+#reg-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.92);
+  display: none; align-items: center; justify-content: center;
+  z-index: 200; padding: 20px;
+}
+#reg-modal.show { display: flex; }
+
+.reg-card {
+  background: #141414;
+  border: 1px solid #333;
+  padding: 28px 24px;
+  max-width: 400px; width: 100%;
+  position: relative;
+}
+.reg-card::before { content:''; position:absolute; top:0; left:0; width:40px; height:3px; background:var(--green); }
+
+.reg-title { font-family:'Bebas Neue',sans-serif; font-size:24px; letter-spacing:.12em; margin-bottom:6px; }
+.reg-sub   { font-size:12px; color:var(--muted2); margin-bottom:20px; letter-spacing:.06em; }
+
+.search-results { max-height: 200px; overflow-y: auto; margin-top: 8px; }
+.search-item { padding: 12px 14px; background: #0f0f0f; border: 1px solid #222; margin-bottom: 6px; cursor: pointer; transition: border-color .2s; }
+.search-item:hover { border-color: var(--accent); }
+.search-item-name { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: .08em; }
+.search-item-plan { font-size: 11px; color: var(--muted2); letter-spacing: .06em; }
+
+.btn-reg-fp { width: 100%; background: var(--green); color: #000; border: none; padding: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: .14em; cursor: pointer; margin-top: 16px; display: none; }
+.btn-close-reg { position: absolute; top: 14px; right: 16px; background: none; border: none; color: var(--muted2); font-size: 20px; cursor: pointer; }
+
+/* Admin FAB */
+.admin-fab {
+  position: fixed; bottom: 24px; right: 24px;
+  width: 44px; height: 44px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 18px;
+  color: var(--muted); z-index: 50;
+  transition: all .2s;
+}
+.admin-fab:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Progress bar countdown */
+.countdown-bar {
+  position: absolute; bottom: 0; left: 0; height: 4px;
+  transition: width linear;
+}
+#result.ok   .countdown-bar { background: var(--green); }
+#result.warn .countdown-bar { background: var(--orange); }
+#result.err  .countdown-bar { background: var(--red); }
+
+/* Toast */
+#toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:#1a1a1a; border:1px solid #333; padding:12px 20px; font-size:13px; letter-spacing:.04em; z-index:9999; opacity:0; transition:all .35s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; pointer-events:none; }
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+#toast.ok  { border-left:3px solid var(--green); }
+#toast.err { border-left:3px solid var(--red); }
+#toast.inf { border-left:3px solid var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- IDLE -->
+<div id="idle" onclick="startCheckin()">
+  <div class="idle-bg"></div>
+  <div class="idle-logo">GymAdmin</div>
+  <div class="idle-sub">Sistema de acceso</div>
+
+  <div class="fp-ring-wrap">
+    <div class="fp-ring">
+      <span class="fp-icon">👆</span>
+    </div>
+    <div class="fp-label">Apoyá tu dedo para ingresar</div>
+  </div>
+
+  <div class="idle-clock">
+    <div class="clock-time" id="clock-time">00:00</div>
+    <div class="clock-date" id="clock-date">—</div>
+  </div>
+</div>
+
+<!-- SCANNING -->
+<div id="scanning">
+  <div class="scan-ring">
+    <span class="scan-icon">👆</span>
+  </div>
+  <div class="scan-label">Leyendo huella...</div>
+</div>
+
+<!-- RESULT -->
+<div id="result">
+  <div class="result-icon" id="result-icon">✓</div>
+  <div class="result-name" id="result-name">—</div>
+  <div class="result-status" id="result-status">—</div>
+  <div class="result-detail" id="result-detail">—</div>
+  <div class="countdown-bar" id="countdown-bar" style="width:100%"></div>
+</div>
+
+<!-- SETUP OVERLAY (primera vez o sin URL) -->
+<div id="setup-overlay" style="display:none">
+  <div class="setup-card">
+    <div class="setup-title">Configurar Check-in</div>
+    <div class="setup-body">
+      Esta pantalla de check-in se conecta con la misma app GymAdmin.<br><br>
+      <strong>Paso 1:</strong> Ingresá la URL de tu Google Apps Script (la misma que usaste en la app principal).<br><br>
+      <strong>Paso 2:</strong> Los socios deben registrar su huella <strong>una vez</strong> desde la app principal (tab Socios → botón "Registrar huella").<br><br>
+      <strong>Modo kiosco:</strong> En Chrome Android, menú ⋮ → <strong>Agregar a pantalla de inicio</strong>. Luego activá el modo de pantalla completa.
+    </div>
+    <label class="setup-inp-label">URL de Google Apps Script</label>
+    <input class="setup-inp" id="ci-url" type="url" placeholder="https://script.google.com/macros/s/...">
+    <button class="btn-setup" onclick="saveCheckinConfig()">GUARDAR Y CONTINUAR</button>
+    <div class="setup-alt" onclick="loadDemoMode()">Usar modo demo (sin Sheets)</div>
+  </div>
+</div>
+
+<!-- REGISTER MODAL (admin registra huella de socio) -->
+<div id="reg-modal">
+  <div class="reg-card">
+    <button class="btn-close-reg" onclick="closeRegModal()">✕</button>
+    <div class="reg-title">Registrar Huella</div>
+    <div class="reg-sub">Buscá al socio y registrá su huella dactilar</div>
+
+    <input type="text" class="setup-inp" id="reg-search" placeholder="Nombre o DNI del socio..." oninput="searchSocios()">
+    <div class="search-results" id="search-results"></div>
+
+    <div id="reg-selected" style="display:none;margin-top:12px;padding:12px;background:#0a0a0a;border:1px solid #333;">
+      <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px">Socio seleccionado</div>
+      <div class="search-item-name" id="reg-selected-name">—</div>
+    </div>
+
+    <button class="btn-reg-fp" id="btn-reg-fp" onclick="registerFingerprint()">
+      👆 REGISTRAR HUELLA
+    </button>
+  </div>
+</div>
+
+<div class="admin-fab" onclick="openRegModal()" title="Registrar huella de socio">⚙</div>
+
+<div id="toast"></div>
+
+<script>
 // ============================================================
-// GymAdmin — Google Apps Script
-// Pegá este código en: Extensions > Apps Script
-// Luego: Deploy > New deployment > Web App
-//   - Execute as: Me
-//   - Who has access: Anyone
+const SCRIPT_URL_KEY = 'gym_checkin_url';
+const FP_KEY         = 'gym_fingerprints';   // { credentialId: socioId }
+const DEMO_MODE_KEY  = 'gym_checkin_demo';
 // ============================================================
 
-const SHEET_SOCIOS = 'Socios';
-const SHEET_VENTAS = 'Ventas';
+let scriptUrl   = localStorage.getItem(SCRIPT_URL_KEY) || '';
+let isDemoMode  = localStorage.getItem(DEMO_MODE_KEY) === 'true';
+let fingerprints = JSON.parse(localStorage.getItem(FP_KEY) || '{}');
+let socios      = JSON.parse(localStorage.getItem('gym_socios') || '[]');
+let selectedSocio = null;
+let resultTimer = null;
 
-function doPost(e) {
+// WebAuthn RP config
+const RP_ID   = location.hostname || 'localhost';
+const RP_NAME = 'GymAdmin';
+
+// ── INIT ──
+window.onload = () => {
+  startClock();
+  if (!scriptUrl && !isDemoMode) {
+    document.getElementById('setup-overlay').style.display = 'flex';
+  } else {
+    loadSociosFromStorage();
+    if (scriptUrl) syncSocios();
+  }
+};
+
+// ── CLOCK ──
+function startClock() {
+  function tick() {
+    const now  = new Date();
+    const time = now.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+    const date = now.toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
+    document.getElementById('clock-time').textContent = time;
+    document.getElementById('clock-date').textContent = date;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+// ── SETUP ──
+function saveCheckinConfig() {
+  const url = document.getElementById('ci-url').value.trim();
+  if (!url || !url.startsWith('https://script.google.com')) {
+    showToast('URL inválida', 'err'); return;
+  }
+  scriptUrl = url;
+  localStorage.setItem(SCRIPT_URL_KEY, url);
+  localStorage.removeItem(DEMO_MODE_KEY);
+  isDemoMode = false;
+  document.getElementById('setup-overlay').style.display = 'none';
+  syncSocios();
+  showToast('✓ Configurado', 'ok');
+}
+
+function loadDemoMode() {
+  isDemoMode = true;
+  localStorage.setItem(DEMO_MODE_KEY, 'true');
+  // Load demo socios
+  socios = [
+    {id:'d1', nombre:'Lucía Torres',  plan:'Mensual',    vencimiento:'2026-04-01', status:'vigente',  monto:15000},
+    {id:'d2', nombre:'Matías Romero', plan:'Trimestral', vencimiento:'2026-05-15', status:'vigente',  monto:38000},
+    {id:'d3', nombre:'Carla Medina',  plan:'Mensual',    vencimiento:'2026-03-01', status:'vencido',  monto:15000},
+    {id:'d4', nombre:'Diego Fuentes', plan:'Anual',      vencimiento:'2027-01-10', status:'vigente',  monto:150000},
+  ];
+  localStorage.setItem('gym_socios', JSON.stringify(socios));
+  document.getElementById('setup-overlay').style.display = 'none';
+  showToast('Modo demo activo', 'inf');
+}
+
+function loadSociosFromStorage() {
+  socios = JSON.parse(localStorage.getItem('gym_socios') || '[]');
+}
+
+async function syncSocios() {
+  if (!scriptUrl) return;
   try {
-    const payload = JSON.parse(e.postData.contents);
-    const action  = payload.action;
-    if (action === 'sync_socios') return handleSyncSocios(payload.data);
-    if (action === 'sync_ventas') return handleSyncVentas(payload.data);
-    if (action === 'get_all')     return handleGetAll();
-    return resp({ ok: false, error: 'Acción desconocida: ' + action });
-  } catch(err) {
-    return resp({ ok: false, error: err.toString() });
-  }
-}
-
-function doGet(e) {
-  return handleGetAll();
-}
-
-// Needed for CORS — Apps Script GET requests don't have preflight issues
-function addCorsHeaders(output) {
-  return output;  // ContentService doesn't support custom headers, but GET works natively
-}
-
-// ── SOCIOS ──────────────────────────────────────────────────
-function handleSyncSocios(rows) {
-  const headers = ['ID','Fecha Registro','Nombre','DNI','Teléfono','Email',
-                   'Plan','Monto','Fecha Pago','Vencimiento','Estado','Notas'];
-  const sheet = getOrCreateSheet(SHEET_SOCIOS, headers);
-  rows.forEach(s => upsertRow(sheet, s.id, [
-    s.id, s.fecha_registro, s.nombre, s.dni, s.telefono, s.email,
-    s.plan, s.monto, s.fecha_pago, s.vencimiento, s.status, s.notas
-  ]));
-  return resp({ ok: true, synced: rows.length });
-}
-
-// ── VENTAS ───────────────────────────────────────────────────
-function handleSyncVentas(rows) {
-  const headers = ['ID','Fecha','Socio','Plan','Monto','Vencimiento anterior','Nuevo vencimiento','Notas'];
-  const sheet = getOrCreateSheet(SHEET_VENTAS, headers);
-  rows.forEach(v => {
-    const data   = sheet.getDataRange().getValues();
-    const exists = data.some(row => row[0] === v.id);
-    if (!exists) sheet.appendRow([v.id, v.fecha, v.socio, v.plan, v.monto, '', '', v.notas || '']);
-  });
-  return resp({ ok: true, synced: rows.length });
-}
-
-// ── GET ALL ──────────────────────────────────────────────────
-function handleGetAll() {
-  const ss     = SpreadsheetApp.getActiveSpreadsheet();
-  const result = {};
-
-  [SHEET_SOCIOS, SHEET_VENTAS].forEach(name => {
-    const sheet = ss.getSheetByName(name);
-    if (!sheet) { result[name] = []; return; }
-    const data = sheet.getDataRange().getValues();
-    if (data.length < 2) { result[name] = []; return; }
-
-    // Find the real header row: the row where first cell is exactly 'ID'
-    let headerIdx = -1;
-    for (let i = 0; i < data.length; i++) {
-      if (String(data[i][0]).trim() === 'ID') { headerIdx = i; break; }
+    // Use GET to avoid CORS preflight issues with Google Apps Script
+    const url = scriptUrl + '?action=get_all&t=' + Date.now();
+    const res  = await fetch(url, { method: 'GET' });
+    const data = await res.json();
+    if (data.ok && data.data && data.data.Socios) {
+      socios = data.data.Socios.map(row => ({
+        id:          String(row['ID'] || '').trim(),
+        nombre:      row['Nombre'],
+        plan:        row['Plan'],
+        vencimiento: row['Vencimiento'],
+        monto:       row['Monto'],
+        status:      row['Estado'] || calcStatus(row['Vencimiento'])
+      })).filter(s => s.id);
+      localStorage.setItem('gym_socios', JSON.stringify(socios));
     }
-    if (headerIdx < 0 || headerIdx >= data.length - 1) { result[name] = []; return; }
-
-    const headers = data[headerIdx].map(h => String(h).trim());
-    result[name]  = data.slice(headerIdx + 1)
-      .filter(row => row[0] && String(row[0]).trim() !== '')
-      .map(row => {
-        const obj = {};
-        headers.forEach((h, i) => { if (h) obj[h] = row[i]; });
-        return obj;
-      });
-  });
-
-  return resp({ ok: true, data: result });
+  } catch(e) {
+    // Offline — use local cache
+    loadSociosFromStorage();
+  }
 }
 
-// ── HELPERS ──────────────────────────────────────────────────
-function getOrCreateSheet(name, headers) {
-  const ss  = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    sheet = ss.insertSheet(name);
-    sheet.appendRow(headers);
-    sheet.getRange(1, 1, 1, headers.length)
-      .setFontWeight('bold')
-      .setBackground('#1a1a1a')
-      .setFontColor('#e8ff47');
-    sheet.setFrozenRows(1);
-    return sheet;
-  }
-  // Sheet exists — make sure it has an 'ID' header row somewhere
-  const data = sheet.getDataRange().getValues();
-  const hasHeader = data.some(row => String(row[0]).trim() === 'ID');
-  if (!hasHeader) {
-    // Prepend headers at top
-    sheet.insertRowBefore(1);
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.getRange(1, 1, 1, headers.length)
-      .setFontWeight('bold')
-      .setBackground('#1a1a1a')
-      .setFontColor('#e8ff47');
-    sheet.setFrozenRows(1);
-  }
-  return sheet;
+function calcStatus(v) {
+  if (!v) return 'pendiente';
+  const n = new Date(); n.setHours(0,0,0,0);
+  return new Date(v + 'T00:00:00') >= n ? 'vigente' : 'vencido';
 }
 
-function upsertRow(sheet, id, rowData) {
-  const data = sheet.getDataRange().getValues();
-  // Find header row index
-  let headerIdx = -1;
-  for (let i = 0; i < data.length; i++) {
-    if (String(data[i][0]).trim() === 'ID') { headerIdx = i; break; }
+// ── CHECK-IN FLOW ──
+async function startCheckin() {
+  if (!isWebAuthnSupported()) {
+    showToast('Este dispositivo no soporta huella dactilar', 'err');
+    return;
   }
-  const startRow = headerIdx >= 0 ? headerIdx + 1 : 1;
-  // Update if exists
-  for (let i = startRow; i < data.length; i++) {
-    if (String(data[i][0]) === String(id)) {
-      sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
+
+  // Check if any fingerprints registered
+  if (Object.keys(fingerprints).length === 0) {
+    showToast('Primero registrá la huella de un socio (⚙)', 'inf');
+    return;
+  }
+
+  showScreen('scanning');
+
+  try {
+    const credentialIds = Object.keys(fingerprints).map(id => ({
+      id: base64ToBuffer(id),
+      type: 'public-key'
+    }));
+
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge:        crypto.getRandomValues(new Uint8Array(32)),
+        rpId:             RP_ID,
+        allowCredentials: credentialIds,
+        userVerification: 'required',  // forces biometric
+        timeout:          30000
+      }
+    });
+
+    const credId    = bufferToBase64(assertion.rawId);
+    const socioId   = fingerprints[credId];
+    const socio     = socios.find(s => s.id === socioId);
+
+    showScreen('idle');
+
+    if (!socio) {
+      showResult('err', '?', 'Socio no encontrado', 'La huella está registrada pero el socio no existe en el sistema.');
       return;
     }
+
+    // Check membership
+    const now  = new Date(); now.setHours(0,0,0,0);
+    const venc = socio.vencimiento ? new Date(socio.vencimiento + 'T00:00:00') : null;
+    const daysLeft = venc ? Math.ceil((venc - now) / 86400000) : null;
+
+    if (socio.status === 'vigente' && daysLeft !== null && daysLeft > 0) {
+      const detail = daysLeft <= 7
+        ? `⚠ Vence en ${daysLeft} día${daysLeft===1?'':'s'} · ${socio.plan}`
+        : `Membresía al día · ${socio.plan} · Vence ${formatDate(socio.vencimiento)}`;
+      showResult(daysLeft <= 7 ? 'warn' : 'ok', '✓', socio.nombre, detail);
+    } else {
+      showResult('err', '✗', socio.nombre,
+        `Membresía vencida${venc ? ' el ' + formatDate(socio.vencimiento) : ''} · ${socio.plan}`);
+    }
+
+  } catch(e) {
+    showScreen('idle');
+    if (e.name === 'NotAllowedError') {
+      // User cancelled or timeout — just go back to idle
+    } else {
+      showToast('Error al leer la huella', 'err');
+    }
   }
-  // Insert new
-  sheet.appendRow(rowData);
 }
 
-function resp(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
+function showScreen(name) {
+  document.getElementById('idle').style.opacity     = name==='idle'     ? '1' : '0';
+  document.getElementById('idle').style.pointerEvents = name==='idle'   ? 'all' : 'none';
+  document.getElementById('scanning').classList.toggle('show', name==='scanning');
+  if (name !== 'result') {
+    document.getElementById('result').classList.remove('show','ok','warn','err');
+  }
 }
 
-function doOptions(e) {
-  return ContentService
-    .createTextOutput('')
-    .setMimeType(ContentService.MimeType.TEXT);
+function showResult(type, icon, name, detail) {
+  clearTimeout(resultTimer);
+  const el     = document.getElementById('result');
+  const bar    = document.getElementById('countdown-bar');
+  const DURATION = type === 'ok' ? 4000 : type === 'warn' ? 6000 : 5000;
+
+  document.getElementById('result-icon').textContent   = icon;
+  document.getElementById('result-name').textContent   = name;
+  document.getElementById('result-status').textContent =
+    type === 'ok'   ? '✓ ACCESO PERMITIDO' :
+    type === 'warn' ? '⚠ ATENCIÓN' :
+                     '✗ ACCESO DENEGADO';
+  document.getElementById('result-detail').textContent = detail;
+
+  el.className = 'show ' + type;
+
+  // Countdown bar
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      bar.style.transition = `width ${DURATION}ms linear`;
+      bar.style.width = '0%';
+    });
+  });
+
+  resultTimer = setTimeout(() => {
+    el.classList.remove('show','ok','warn','err');
+    // Re-sync socios periodically
+    if (scriptUrl) syncSocios();
+  }, DURATION);
 }
+
+function formatDate(d) {
+  if (!d) return '';
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+// ── REGISTER FINGERPRINT ──
+function openRegModal() {
+  loadSociosFromStorage();
+  document.getElementById('reg-modal').classList.add('show');
+  document.getElementById('reg-search').value = '';
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('reg-selected').style.display = 'none';
+  document.getElementById('btn-reg-fp').style.display = 'none';
+  selectedSocio = null;
+}
+
+function closeRegModal() {
+  document.getElementById('reg-modal').classList.remove('show');
+}
+
+function searchSocios() {
+  const q = document.getElementById('reg-search').value.toLowerCase();
+  if (!q) { document.getElementById('search-results').innerHTML = ''; return; }
+  const results = socios.filter(s =>
+    s.nombre.toLowerCase().includes(q) || (s.dni||'').includes(q)
+  ).slice(0, 6);
+
+  document.getElementById('search-results').innerHTML = results.map(s => `
+    <div class="search-item" onclick="selectSocio('${s.id}')">
+      <div class="search-item-name">${s.nombre}</div>
+      <div class="search-item-plan">${s.plan} · ${s.status}</div>
+    </div>`).join('') || '<div style="padding:12px;font-size:12px;color:var(--muted2)">Sin resultados</div>';
+}
+
+function selectSocio(id) {
+  selectedSocio = socios.find(s => s.id === id);
+  if (!selectedSocio) return;
+  document.getElementById('reg-selected-name').textContent = selectedSocio.nombre + ' · ' + selectedSocio.plan;
+  document.getElementById('reg-selected').style.display = 'block';
+  document.getElementById('btn-reg-fp').style.display   = 'block';
+  document.getElementById('search-results').innerHTML   = '';
+  document.getElementById('reg-search').value           = '';
+}
+
+async function registerFingerprint() {
+  if (!selectedSocio) { showToast('Seleccioná un socio primero', 'err'); return; }
+  if (!isWebAuthnSupported()) { showToast('Este dispositivo no soporta huella dactilar', 'err'); return; }
+
+  try {
+    showToast('Apoyá el dedo en el sensor...', 'inf');
+
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge:  crypto.getRandomValues(new Uint8Array(32)),
+        rp:         { id: RP_ID, name: RP_NAME },
+        user: {
+          id:          new TextEncoder().encode(selectedSocio.id),
+          name:        selectedSocio.nombre,
+          displayName: selectedSocio.nombre
+        },
+        pubKeyCredParams: [
+          { alg: -7,   type: 'public-key' },  // ES256
+          { alg: -257, type: 'public-key' }   // RS256
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform',   // use device sensor
+          userVerification:        'required',   // forces biometric
+          residentKey:             'preferred'
+        },
+        timeout: 60000
+      }
+    });
+
+    const credId = bufferToBase64(credential.rawId);
+    fingerprints[credId] = selectedSocio.id;
+    localStorage.setItem(FP_KEY, JSON.stringify(fingerprints));
+
+    closeRegModal();
+    showToast(`✓ Huella de ${selectedSocio.nombre} registrada`, 'ok');
+    selectedSocio = null;
+
+  } catch(e) {
+    if (e.name === 'NotAllowedError') {
+      showToast('Registro cancelado', 'err');
+    } else {
+      showToast('Error: ' + e.message, 'err');
+    }
+  }
+}
+
+// ── WEBAUTHN UTILS ──
+function isWebAuthnSupported() {
+  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+}
+
+function bufferToBase64(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+function base64ToBuffer(base64) {
+  const b64 = base64.replace(/-/g,'+').replace(/_/g,'/');
+  const bin = atob(b64);
+  return new Uint8Array([...bin].map(c => c.charCodeAt(0))).buffer;
+}
+
+// ── TOAST ──
+let toastT;
+function showToast(msg, type='inf') {
+  clearTimeout(toastT);
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  toastT = setTimeout(() => { t.className = ''; }, 3000);
+}
+</script>
+</body>
+</html>
