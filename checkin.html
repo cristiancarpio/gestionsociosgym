@@ -1003,6 +1003,11 @@ function showToast(msg, type='inf') {
   t.textContent = msg; t.className = 'show ' + type;
   toastT = setTimeout(() => { t.className = ''; }, 3000);
 }
+
+// ── SERVICE WORKER
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
 </script>
 </body>
 </html>
