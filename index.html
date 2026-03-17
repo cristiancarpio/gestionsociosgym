@@ -1223,6 +1223,9 @@ function updateBalance() {
   `).join('');
 }
 
+// ── TOAST
+let toastT;
+function showToast(msg, type='info') {
   clearTimeout(toastT);
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = 'show ' + type;
