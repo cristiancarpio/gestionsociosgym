@@ -9,8 +9,8 @@ const SHEET_NAME_ALERTAS = 'Alertas';
 const SHEET_NAME_STOCK   = 'Stock';
 const SHEET_NAME_VENTAS  = 'Ventas';
 
-// ── HEADERS ──
-const HEADERS_SOCIOS  = ['ID','Nombre','DNI','Teléfono','Email','Plan','Monto','Fecha Pago','Vencimiento','Notas','Fecha Registro','Estado'];
+// ── HEADERS — orden exacto del Sheet real ──
+const HEADERS_SOCIOS  = ['ID','Fecha Registro','Nombre','DNI','Teléfono','Email','Plan','Monto','Fecha Pago','Vencimiento','Estado','Notas'];
 const HEADERS_ALERTAS = ['ID','Fecha','Nombre','Plan','Vencimiento','Leída'];
 const HEADERS_STOCK   = ['ID','Nombre','Cantidad','Precio','Categoría'];
 const HEADERS_VENTAS  = ['ID','Fecha','Producto','Cantidad','Total','Método'];
@@ -144,14 +144,19 @@ function upsertRows(sheet, headers, records) {
   records.forEach(record => {
     const id  = String(record.id || record.ID || '').trim();
     const row = headers.map(h => {
-      // Map camelCase keys to header names
       const keyMap = {
-        'ID': record.id, 'Nombre': record.nombre, 'DNI': record.dni,
-        'Teléfono': record.telefono, 'Email': record.email, 'Plan': record.plan,
-        'Monto': record.monto, 'Fecha Pago': record.fecha_pago,
-        'Vencimiento': record.vencimiento, 'Notas': record.notas,
-        'Fecha Registro': record.fecha_registro,
-        'Estado': record.status || calcStatus(record.vencimiento)
+        'ID':              record.id,
+        'Fecha Registro':  record.fecha_registro,
+        'Nombre':          record.nombre,
+        'DNI':             record.dni,
+        'Teléfono':        record.telefono,
+        'Email':           record.email,
+        'Plan':            record.plan,
+        'Monto':           record.monto,
+        'Fecha Pago':      record.fecha_pago,
+        'Vencimiento':     record.vencimiento,
+        'Estado':          record.status || calcStatus(record.vencimiento),
+        'Notas':           record.notas
       };
       return keyMap[h] !== undefined ? keyMap[h] : (record[h] || '');
     });

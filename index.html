@@ -704,27 +704,41 @@ async function loadFromSheet() {
     const r = await apiCall({ action: 'get_all' });
     if (!r.ok || !r.data || !r.data.Socios) { setSyncState('synced','Sincronizado'); return; }
 
-    // Build map of sheet data by ID
     const sheetMap = {};
     r.data.Socios.forEach(row => {
-      const id = String(row['ID'] || '').trim();
-      if (!id) return;
+      // Skip header/banner rows — real IDs start with 'r' or are numeric
+      const id = String(row['ID'] || row['id'] || '').trim();
+      if (!id || id.toLowerCase().includes('gymadmin') || id === 'ID') return;
+
+      // Support both column name variants
+      const venc = row['Vencimiento'] || row['vencimiento'] || '';
       sheetMap[id] = {
-        id, nombre: row['Nombre'], dni: row['DNI'], telefono: row['Teléfono'],
-        email: row['Email'], plan: row['Plan'], monto: row['Monto'],
-        fecha_pago: row['Fecha Pago'], vencimiento: row['Vencimiento'],
-        notas: row['Notas'], fecha_registro: row['Fecha Registro'],
-        status: row['Estado'] || calcStatus(row['Vencimiento']), synced: true
+        id,
+        nombre:         row['Nombre']          || row['nombre']         || '',
+        dni:            row['DNI']             || row['dni']            || '',
+        telefono:       row['Teléfono']        || row['telefono']       || '',
+        email:          row['Email']           || row['email']          || '',
+        plan:           row['Plan']            || row['plan']           || '',
+        monto:          row['Monto']           || row['monto']          || '',
+        fecha_pago:     row['Fecha Pago']      || row['fecha_pago']     || '',
+        vencimiento:    venc,
+        notas:          row['Notas']           || row['notas']          || '',
+        fecha_registro: row['Fecha Registro']  || row['fecha_registro'] || '',
+        status:         row['Estado']          || row['estado']         || calcStatus(venc),
+        synced: true
       };
     });
 
-    // Keep local-only records that haven't synced yet, replace everything else
     const localOnly = socios.filter(s => !s.synced && !sheetMap[s.id]);
     socios = [...Object.values(sheetMap), ...localOnly];
 
     saveLocal(); renderSocios(); updateStats();
-    setSyncState('synced','Sincronizado');
-  } catch(e) { setSyncState('error','Error'); }
+    setSyncState('synced', 'Sincronizado');
+    showToast('✓ ' + Object.keys(sheetMap).length + ' socios cargados', 'success');
+  } catch(e) {
+    setSyncState('error', 'Error al cargar');
+    showToast('Error al sincronizar: ' + e.message, 'error');
+  }
 }
 
 async function apiCall(payload) {

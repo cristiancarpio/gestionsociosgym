@@ -752,15 +752,20 @@ async function syncSocios() {
     const res  = await fetch('/api/proxy?url=' + encodeURIComponent(scriptUrl) + '&action=get_all&t=' + Date.now());
     const data = await res.json();
     if (data.ok && data.data && data.data.Socios) {
-      socios = data.data.Socios.map(row => ({
-        id:          String(row['ID'] || '').trim(),
-        nombre:      row['Nombre'],
-        plan:        row['Plan'],
-        vencimiento: row['Vencimiento'],
-        dni:         row['DNI'] || '',
-        monto:       row['Monto'],
-        status:      row['Estado'] || calcStatus(row['Vencimiento'])
-      })).filter(s => s.id);
+      socios = data.data.Socios.map(row => {
+        const id = String(row['ID'] || row['id'] || '').trim();
+        if (!id || id.toLowerCase().includes('gymadmin') || id === 'ID') return null;
+        const venc = row['Vencimiento'] || row['vencimiento'] || '';
+        return {
+          id,
+          nombre:      row['Nombre']     || '',
+          plan:        row['Plan']       || '',
+          vencimiento: venc,
+          dni:         row['DNI']        || '',
+          monto:       row['Monto']      || '',
+          status:      row['Estado']     || calcStatus(venc)
+        };
+      }).filter(Boolean);
       localStorage.setItem('gym_socios', JSON.stringify(socios));
     }
   } catch(e) {
