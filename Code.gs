@@ -1,233 +1,183 @@
 // ============================================================
-//  GymAdmin — Google Apps Script (Code.gs)
-//  Pegá TODO este código en tu proyecto de Apps Script
+//  GymAdmin — Google Apps Script
+//  Pegá este código en tu Google Apps Script y re-publicá
+//  como "Nueva implementación → Aplicación web"
 // ============================================================
 
-const SPREADSHEET_ID = ''; // Dejalo vacío: el script usa el Sheet donde está publicado
+const SHEET_NAME_SOCIOS  = 'Socios';
+const SHEET_NAME_ALERTAS = 'Alertas';
+const SHEET_NAME_STOCK   = 'Stock';
+const SHEET_NAME_VENTAS  = 'Ventas';
 
-// ── Cabeceras de cada hoja ──────────────────────────────────
-const HEADERS = {
-  Socios:  ['ID','Nombre','DNI','Telefono','Plan','Monto','Inicio','Vencimiento','Estado','Notas'],
-  Stock:   ['ID','Nombre','Categoria','Precio','Stock','Costo'],
-  Ventas:  ['ID','Fecha','Producto','Cantidad','Precio','Total'],
-  Alertas: ['ID','Fecha','Nombre','Plan','Vencimiento']
-};
+// ── HEADERS ──
+const HEADERS_SOCIOS  = ['ID','Nombre','DNI','Teléfono','Email','Plan','Monto','Fecha Pago','Vencimiento','Notas','Fecha Registro','Estado'];
+const HEADERS_ALERTAS = ['ID','Fecha','Nombre','Plan','Vencimiento','Leída'];
+const HEADERS_STOCK   = ['ID','Nombre','Cantidad','Precio','Categoría'];
+const HEADERS_VENTAS  = ['ID','Fecha','Producto','Cantidad','Total','Método'];
 
-// ── Utilidad: obtener o crear una hoja ─────────────────────
-function getSheet(name) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  let   sheet = ss.getSheetByName(name);
+function getOrCreateSheet(ss, name, headers) {
+  let sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
-    sheet.appendRow(HEADERS[name]);
-    sheet.getRange(1, 1, 1, HEADERS[name].length)
-      .setBackground('#e8ff47')
-      .setFontWeight('bold');
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length)
+      .setBackground('#1a1a1a').setFontColor('#e8ff47').setFontWeight('bold');
     sheet.setFrozenRows(1);
   }
   return sheet;
 }
 
-// ── Leer toda una hoja como array de objetos ───────────────
-function sheetToObjects(sheet, headers) {
+// ── GET — returns JSON (and supports JSONP via ?callback=xxx) ──
+function doGet(e) {
+  const params   = e.parameter || {};
+  const action   = params.action || 'get_all';
+  const callback = params.callback || null;   // JSONP support
+
+  let result;
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (action === 'get_all') {
+      const sheetSocios  = getOrCreateSheet(ss, SHEET_NAME_SOCIOS,  HEADERS_SOCIOS);
+      const sheetAlertas = getOrCreateSheet(ss, SHEET_NAME_ALERTAS, HEADERS_ALERTAS);
+
+      result = {
+        ok: true,
+        data: {
+          Socios:  sheetToArray(sheetSocios),
+          Alertas: sheetToArray(sheetAlertas)
+        }
+      };
+    } else {
+      result = { ok: false, error: 'Unknown action' };
+    }
+  } catch(err) {
+    result = { ok: false, error: err.message };
+  }
+
+  const json = JSON.stringify(result);
+
+  // If JSONP requested, wrap in callback
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + '(' + json + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
+  return ContentService
+    .createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── POST — writes data ──
+function doPost(e) {
+  let payload;
+  try {
+    payload = JSON.parse(e.postData.contents);
+  } catch(err) {
+    return jsonResponse({ ok: false, error: 'Invalid JSON' });
+  }
+
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const action = payload.action;
+
+  try {
+    if (action === 'sync_socios') {
+      const sheet = getOrCreateSheet(ss, SHEET_NAME_SOCIOS, HEADERS_SOCIOS);
+      upsertRows(sheet, HEADERS_SOCIOS, payload.data || []);
+      return jsonResponse({ ok: true });
+    }
+
+    if (action === 'sync_alerta') {
+      const sheet = getOrCreateSheet(ss, SHEET_NAME_ALERTAS, HEADERS_ALERTAS);
+      const d = payload.data;
+      sheet.appendRow([d.id, d.fecha, d.nombre, d.plan, d.vencimiento, 'no']);
+      return jsonResponse({ ok: true });
+    }
+
+    if (action === 'sync_stock') {
+      const sheet = getOrCreateSheet(ss, SHEET_NAME_STOCK, HEADERS_STOCK);
+      upsertRows(sheet, HEADERS_STOCK, payload.data || []);
+      return jsonResponse({ ok: true });
+    }
+
+    if (action === 'sync_ventas') {
+      const sheet = getOrCreateSheet(ss, SHEET_NAME_VENTAS, HEADERS_VENTAS);
+      const rows  = payload.data || [];
+      rows.forEach(v => sheet.appendRow([v.id, v.fecha, v.producto, v.cantidad, v.total, v.metodo]));
+      return jsonResponse({ ok: true });
+    }
+
+    return jsonResponse({ ok: false, error: 'Unknown action: ' + action });
+  } catch(err) {
+    return jsonResponse({ ok: false, error: err.message });
+  }
+}
+
+// ── HELPERS ──
+
+function sheetToArray(sheet) {
   const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];           // solo cabecera o vacío
-  const keys = data[0];
+  if (data.length < 2) return [];
+  const headers = data[0];
   return data.slice(1).map(row => {
     const obj = {};
-    keys.forEach((k, i) => { obj[k] = row[i]; });
+    headers.forEach((h, i) => { obj[h] = row[i]; });
     return obj;
   });
 }
 
-// ── doGet: devuelve todos los datos (llamada GET desde la app) ─
-function doGet(e) {
-  const action = e && e.parameter && e.parameter.action;
+function upsertRows(sheet, headers, records) {
+  if (!records.length) return;
 
-  if (action === 'get_all') {
-    try {
-      const socios  = sheetToObjects(getSheet('Socios'),  HEADERS.Socios);
-      const stock   = sheetToObjects(getSheet('Stock'),   HEADERS.Stock);
-      const ventas  = sheetToObjects(getSheet('Ventas'),  HEADERS.Ventas);
+  const data     = sheet.getDataRange().getValues();
+  const hdrs     = data[0] || headers;
+  const idCol    = hdrs.indexOf('ID');
+  const existMap = {};
 
-      const result = ContentService
-        .createTextOutput(JSON.stringify({ ok: true, data: { Socios: socios, Stock: stock, Ventas: ventas } }))
-        .setMimeType(ContentService.MimeType.JSON);
+  // Build map of existing row indices by ID
+  data.slice(1).forEach((row, i) => {
+    const id = String(row[idCol] || '').trim();
+    if (id) existMap[id] = i + 2; // 1-indexed, +1 for header
+  });
 
-      return result;
-    } catch (err) {
-      return ContentService
-        .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
-        .setMimeType(ContentService.MimeType.JSON);
+  records.forEach(record => {
+    const id  = String(record.id || record.ID || '').trim();
+    const row = headers.map(h => {
+      // Map camelCase keys to header names
+      const keyMap = {
+        'ID': record.id, 'Nombre': record.nombre, 'DNI': record.dni,
+        'Teléfono': record.telefono, 'Email': record.email, 'Plan': record.plan,
+        'Monto': record.monto, 'Fecha Pago': record.fecha_pago,
+        'Vencimiento': record.vencimiento, 'Notas': record.notas,
+        'Fecha Registro': record.fecha_registro,
+        'Estado': record.status || calcStatus(record.vencimiento)
+      };
+      return keyMap[h] !== undefined ? keyMap[h] : (record[h] || '');
+    });
+
+    if (id && existMap[id]) {
+      sheet.getRange(existMap[id], 1, 1, headers.length).setValues([row]);
+    } else {
+      sheet.appendRow(row);
     }
-  }
-
-  // Default: ping de estado
-  return ContentService
-    .createTextOutput(JSON.stringify({ ok: true, message: 'GymAdmin API activa' }))
-    .setMimeType(ContentService.MimeType.JSON);
+  });
 }
 
-// ── doPost: recibe cambios desde la app ─────────────────────
-function doPost(e) {
+function calcStatus(vencimiento) {
+  if (!vencimiento) return 'pendiente';
   try {
-    const payload = JSON.parse(e.postData.contents);
-    const action  = payload.action;
-
-    if (action === 'sync_socios') {
-      syncSocios(payload.data);
-      return jsonOk({ synced: payload.data.length });
-    }
-
-    if (action === 'sync_stock') {
-      syncStock(payload.data);
-      return jsonOk({ synced: payload.data.length });
-    }
-
-    if (action === 'sync_ventas') {
-      syncVentas(payload.data);
-      return jsonOk({ synced: payload.data.length });
-    }
-
-    if (action === 'sync_alerta') {
-      guardarAlerta(payload.data);
-      return jsonOk({});
-    }
-
-    return jsonOk({ message: 'Acción desconocida: ' + action });
-
-  } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
+    const d   = new Date(vencimiento);
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    return d >= now ? 'vigente' : 'vencido';
+  } catch(e) {
+    return 'pendiente';
   }
 }
 
-// ── Sync Socios ─────────────────────────────────────────────
-function syncSocios(records) {
-  if (!records || !records.length) return;
-  const sheet   = getSheet('Socios');
-  const data    = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const idCol   = headers.indexOf('ID');
-
-  // Crear mapa de filas existentes: ID → rowIndex (1-based, sin cabecera)
-  const rowMap = {};
-  for (let i = 1; i < data.length; i++) {
-    rowMap[String(data[i][idCol])] = i + 1; // +1 porque las filas del sheet empiezan en 1
-  }
-
-  records.forEach(rec => {
-    const row = buildSocioRow(rec, headers);
-    const existingRow = rowMap[String(rec.id || rec.ID)];
-    if (existingRow) {
-      sheet.getRange(existingRow, 1, 1, row.length).setValues([row]);
-    } else {
-      sheet.appendRow(row);
-    }
-  });
-}
-
-function buildSocioRow(rec, headers) {
-  return headers.map(h => {
-    switch (h) {
-      case 'ID':          return rec.id          || rec.ID          || '';
-      case 'Nombre':      return rec.nombre       || rec.Nombre      || '';
-      case 'DNI':         return rec.dni          || rec.DNI         || '';
-      case 'Telefono':    return rec.telefono     || rec.Telefono    || '';
-      case 'Plan':        return rec.plan         || rec.Plan        || '';
-      case 'Monto':       return rec.monto        || rec.Monto       || '';
-      case 'Inicio':      return rec.inicio       || rec.Inicio      || '';
-      case 'Vencimiento': return rec.vencimiento  || rec.Vencimiento || '';
-      case 'Estado':      return rec.status       || rec.Estado      || '';
-      case 'Notas':       return rec.notas        || rec.Notas       || '';
-      default:            return '';
-    }
-  });
-}
-
-// ── Sync Stock ──────────────────────────────────────────────
-function syncStock(records) {
-  if (!records || !records.length) return;
-  const sheet   = getSheet('Stock');
-  const data    = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const idCol   = headers.indexOf('ID');
-
-  const rowMap = {};
-  for (let i = 1; i < data.length; i++) {
-    rowMap[String(data[i][idCol])] = i + 1;
-  }
-
-  records.forEach(rec => {
-    const row = headers.map(h => {
-      switch (h) {
-        case 'ID':        return rec.id        || '';
-        case 'Nombre':    return rec.nombre     || '';
-        case 'Categoria': return rec.categoria  || '';
-        case 'Precio':    return rec.precio     || '';
-        case 'Stock':     return rec.stock      || '';
-        case 'Costo':     return rec.costo      || '';
-        default:          return '';
-      }
-    });
-    const existingRow = rowMap[String(rec.id)];
-    if (existingRow) {
-      sheet.getRange(existingRow, 1, 1, row.length).setValues([row]);
-    } else {
-      sheet.appendRow(row);
-    }
-  });
-}
-
-// ── Sync Ventas ─────────────────────────────────────────────
-function syncVentas(records) {
-  if (!records || !records.length) return;
-  const sheet   = getSheet('Ventas');
-  const data    = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const idCol   = headers.indexOf('ID');
-
-  const existingIds = new Set(data.slice(1).map(r => String(r[idCol])));
-
-  records.forEach(rec => {
-    if (existingIds.has(String(rec.id))) return; // no duplicar ventas
-    const row = headers.map(h => {
-      switch (h) {
-        case 'ID':        return rec.id        || '';
-        case 'Fecha':     return rec.fecha      || '';
-        case 'Producto':  return rec.producto   || '';
-        case 'Cantidad':  return rec.cantidad   || '';
-        case 'Precio':    return rec.precio     || '';
-        case 'Total':     return rec.total      || '';
-        default:          return '';
-      }
-    });
-    sheet.appendRow(row);
-  });
-}
-
-// ── Guardar Alerta de Acceso Denegado ───────────────────────
-function guardarAlerta(rec) {
-  if (!rec) return;
-  const sheet   = getSheet('Alertas');
-  const headers = HEADERS.Alertas;
-  const row     = headers.map(h => {
-    switch (h) {
-      case 'ID':          return rec.id          || 'a' + Date.now();
-      case 'Fecha':       return rec.fecha        || new Date().toLocaleString('es-AR');
-      case 'Nombre':      return rec.nombre       || '';
-      case 'Plan':        return rec.plan         || '';
-      case 'Vencimiento': return rec.vencimiento  || '';
-      default:            return '';
-    }
-  });
-  sheet.appendRow(row);
-}
-
-// ── Helper: respuesta JSON ok ──────────────────────────────
-function jsonOk(extra) {
+function jsonResponse(obj) {
   return ContentService
-    .createTextOutput(JSON.stringify(Object.assign({ ok: true }, extra)))
+    .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }

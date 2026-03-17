@@ -331,16 +331,33 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
   </div>
 
   <div class="nav-tabs">
-    <div class="nav-tab active" data-tab="nuevo">Nuevo</div>
-    <div class="nav-tab" data-tab="socios">
+    <div class="nav-tab active" data-tab="socios">
       Socios
       <span class="badge" id="pending-badge">0</span>
     </div>
+    <div class="nav-tab" data-tab="nuevo">Nuevo</div>
     <div class="nav-tab" data-tab="stats">Resumen</div>
   </div>
 
+  <!-- TAB: SOCIOS (default) -->
+  <div class="tab-content active" id="tab-socios">
+    <div class="list-wrap">
+      <div class="pending-banner" id="pending-banner" style="display:none">
+        <span id="pending-txt">⟳ Cambios pendientes de sync</span>
+        <button class="btn-sync-now" onclick="triggerSync()">SINCRONIZAR</button>
+      </div>
+      <div class="list-toolbar">
+        <input class="search-inp" id="search-inp" type="text" placeholder="Buscar por nombre o DNI..." oninput="renderSocios()">
+        <button class="filter-btn active" data-filter="todos"    onclick="setFilter(this)">Todos</button>
+        <button class="filter-btn"        data-filter="vigente"  onclick="setFilter(this)">Vigentes</button>
+        <button class="filter-btn"        data-filter="vencido"  onclick="setFilter(this)">Vencidos</button>
+      </div>
+      <div id="socios-list"></div>
+    </div>
+  </div>
+
   <!-- TAB: NUEVO SOCIO -->
-  <div class="tab-content active" id="tab-nuevo">
+  <div class="tab-content" id="tab-nuevo">
     <div class="form-wrap">
       <div class="section-title">Nuevo Socio</div>
       <div class="section-sub">Se guarda localmente y sincroniza con Google Sheets</div>
@@ -394,23 +411,6 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
     </div>
   </div>
 
-  <!-- TAB: SOCIOS -->
-  <div class="tab-content" id="tab-socios">
-    <div class="list-wrap">
-      <div class="pending-banner" id="pending-banner" style="display:none">
-        <span id="pending-txt">⟳ Cambios pendientes de sync</span>
-        <button class="btn-sync-now" onclick="triggerSync()">SINCRONIZAR</button>
-      </div>
-      <div class="list-toolbar">
-        <input class="search-inp" id="search-inp" type="text" placeholder="Buscar por nombre o DNI..." oninput="renderSocios()">
-        <button class="filter-btn active" data-filter="todos"    onclick="setFilter(this)">Todos</button>
-        <button class="filter-btn"        data-filter="vigente"  onclick="setFilter(this)">Vigentes</button>
-        <button class="filter-btn"        data-filter="vencido"  onclick="setFilter(this)">Vencidos</button>
-      </div>
-      <div id="socios-list"></div>
-    </div>
-  </div>
-
   <!-- TAB: RESUMEN -->
   <div class="tab-content" id="tab-stats">
     <div class="stats-wrap">
@@ -427,8 +427,6 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
         <div class="balance-total" id="balance-total">$0</div>
         <div class="balance-sub" id="balance-sub">ingresos registrados este mes</div>
         <div class="balance-rows" id="balance-rows"></div>
-      </div>
-
       </div><!-- /balance-card -->
 
       <div class="chart-section" id="venc-section" style="display:none">
@@ -595,7 +593,6 @@ function skipSetup() { showApp(); }
 // ── APP
 function showApp() {
   showScreen('s-app');
-  document.getElementById('f-fecha').valueAsDate = new Date();
   renderSocios();
   updatePendingUI();
   updateStats();
@@ -613,6 +610,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'stats') setTimeout(animateBars, 100);
+    if (tab.dataset.tab === 'nuevo') document.getElementById('f-fecha').valueAsDate = new Date();
   });
 });
 
@@ -730,14 +728,11 @@ async function loadFromSheet() {
 }
 
 async function apiCall(payload) {
-  // Google Apps Script doesn't support CORS preflight (OPTIONS).
-  // GET requests work fine; POST must use no-cors (fire-and-forget).
   if (payload.action === 'get_all') {
-    const url = SCRIPT_URL + '?action=get_all&t=' + Date.now();
-    const res  = await fetch(url, { method: 'GET' });
-    return await res.json();
+    // Use JSONP to avoid CORS — Google Apps Script supports ?callback=
+    return await jsonpFetch(SCRIPT_URL + '?action=get_all&t=' + Date.now());
   } else {
-    // no-cors POST: response is opaque, but the write still executes on Google's side
+    // no-cors POST: response is opaque, write still executes on Google's side
     await fetch(SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -746,6 +741,32 @@ async function apiCall(payload) {
     });
     return { ok: true };
   }
+}
+
+function jsonpFetch(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'gjsonp_' + Date.now();
+    const script = document.createElement('script');
+    const timer  = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 15000);
+
+    window[cbName] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('JSONP error')); };
+    script.src = url + '&callback=' + cbName;
+    document.head.appendChild(script);
+  });
 }
 
 function saveLocal() {
@@ -939,9 +960,7 @@ let seenAlertIds = new Set(JSON.parse(localStorage.getItem('gym_seen_alerts') ||
 async function pollAlerts() {
   if (!SCRIPT_URL || !isOnline) return;
   try {
-    const url = SCRIPT_URL + '?action=get_all&t=' + Date.now();
-    const res  = await fetch(url, { method: 'GET' });
-    const r    = await res.json();
+    const r = await jsonpFetch(SCRIPT_URL + '?action=get_all&t=' + Date.now());
     if (!r.ok || !r.data || !r.data.Alertas) return;
 
     alertas = r.data.Alertas.map(a => ({
