@@ -521,7 +521,8 @@ function broadcastAccess(payload) {
 async function notifyDenied(socio) {
   const hora = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
   const venc = socio.vencimiento ? formatDate(String(socio.vencimiento)) : '—';
-  broadcastAccess({ type:'access_denied', nombre:socio.nombre, plan:socio.plan, venc });  if (TG_TOKEN && TG_CHAT_ID) {
+  broadcastAccess({ type:'access_denied', nombre:socio.nombre, plan:socio.plan, venc });
+  if (TG_TOKEN && TG_CHAT_ID) {
     const msg = `🚨 *Acceso denegado*\n👤 ${socio.nombre}\n📋 ${socio.plan}\n📅 Venció el ${venc}\n🕐 ${hora}hs`;
     try { await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({chat_id:TG_CHAT_ID, text:msg, parse_mode:'Markdown'}) }); } catch(e){}
   }
