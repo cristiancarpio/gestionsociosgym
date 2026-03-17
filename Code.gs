@@ -1,1008 +1,233 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#080808">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>GymAdmin · Check-in</title>
-<link rel="manifest" href="/manifest-checkin.json">
-<link rel="apple-touch-icon" href="/icons/icon-192.png">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Check-in">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg: #080808;
-  --surface: #0f0f0f;
-  --card: #141414;
-  --border: #222;
-  --accent: #e8ff47;
-  --green: #00ff88;
-  --red: #ff3333;
-  --orange: #ff9944;
-  --text: #f0f0f0;
-  --muted: #444;
-  --muted2: #777;
-}
-
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
-
-html, body {
-  height: 100%; width: 100%;
-  font-family: 'Barlow', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  overflow: hidden;
-}
-
-/* ── IDLE SCREEN ── */
-#idle {
-  position: fixed; inset: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  background: var(--bg);
-  transition: opacity .4s;
-  cursor: pointer;
-}
-
-.idle-bg {
-  position: absolute; inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-/* Animated grid lines */
-.idle-bg::before {
-  content: '';
-  position: absolute; inset: -50%;
-  background-image:
-    linear-gradient(rgba(232,255,71,.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232,255,71,.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-  animation: gridmove 20s linear infinite;
-}
-
-@keyframes gridmove {
-  0%   { transform: translate(0,0); }
-  100% { transform: translate(60px,60px); }
-}
-
-.idle-bg::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse 60% 60% at 50% 50%, transparent 40%, var(--bg) 100%);
-}
-
-.idle-logo {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(48px, 12vw, 96px);
-  letter-spacing: .18em;
-  color: var(--accent);
-  position: relative; z-index: 1;
-  margin-bottom: 4px;
-}
-
-.idle-sub {
-  font-size: clamp(11px, 2vw, 14px);
-  letter-spacing: .28em;
-  text-transform: uppercase;
-  color: var(--muted2);
-  position: relative; z-index: 1;
-  margin-bottom: clamp(48px, 10vw, 80px);
-}
-
-/* Fingerprint button */
-.fp-ring-wrap {
-  position: relative; z-index: 1;
-  display: flex; flex-direction: column;
-  align-items: center; gap: 24px;
-}
-
-.fp-ring {
-  width: clamp(140px, 28vw, 200px);
-  height: clamp(140px, 28vw, 200px);
-  border-radius: 50%;
-  border: 2px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  position: relative;
-  cursor: pointer;
-  transition: border-color .3s;
-}
-
-.fp-ring::before {
-  content: '';
-  position: absolute; inset: -10px;
-  border-radius: 50%;
-  border: 1px solid rgba(232,255,71,.1);
-  animation: ringpulse 3s ease-in-out infinite;
-}
-
-.fp-ring::after {
-  content: '';
-  position: absolute; inset: -20px;
-  border-radius: 50%;
-  border: 1px solid rgba(232,255,71,.05);
-  animation: ringpulse 3s ease-in-out infinite .5s;
-}
-
-@keyframes ringpulse {
-  0%, 100% { opacity: 0; transform: scale(.95); }
-  50%       { opacity: 1; transform: scale(1.05); }
-}
-
-.fp-ring:hover { border-color: var(--accent); }
-.fp-ring:hover .fp-icon { color: var(--accent); }
-
-.fp-icon {
-  font-size: clamp(64px, 14vw, 96px);
-  color: var(--muted2);
-  transition: color .3s;
-  line-height: 1;
-}
-
-.fp-label {
-  font-size: clamp(12px, 2.5vw, 15px);
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: var(--muted2);
-  text-align: center;
-}
-
-/* Clock */
-.idle-clock {
-  position: absolute;
-  bottom: clamp(24px, 5vw, 40px);
-  left: 50%; transform: translateX(-50%);
-  text-align: center;
-  z-index: 1;
-}
-
-.clock-time {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(32px, 8vw, 56px);
-  letter-spacing: .1em;
-  color: var(--muted);
-  line-height: 1;
-}
-
-.clock-date {
-  font-size: clamp(10px, 2vw, 13px);
-  letter-spacing: .16em;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-top: 4px;
-}
-
-/* ── SCANNING ── */
-#scanning {
-  position: fixed; inset: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  background: var(--bg);
-  opacity: 0; pointer-events: none;
-  transition: opacity .3s;
-}
-
-#scanning.show { opacity: 1; pointer-events: all; }
-
-.scan-ring {
-  width: clamp(160px, 32vw, 220px);
-  height: clamp(160px, 32vw, 220px);
-  border-radius: 50%;
-  border: 3px solid var(--accent);
-  display: flex; align-items: center; justify-content: center;
-  position: relative;
-  margin-bottom: 32px;
-}
-
-.scan-ring::before {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(var(--accent) 0deg, transparent 120deg);
-  animation: rotate 1s linear infinite;
-  mask: radial-gradient(transparent 65%, black 66%);
-  -webkit-mask: radial-gradient(transparent 65%, black 66%);
-}
-
-@keyframes rotate { to { transform: rotate(360deg); } }
-
-.scan-icon {
-  font-size: clamp(72px, 15vw, 100px);
-  color: var(--accent);
-  animation: scanpulse .8s ease-in-out infinite;
-}
-
-@keyframes scanpulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-
-.scan-label {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(20px, 4vw, 28px);
-  letter-spacing: .18em;
-  color: var(--accent);
-  text-align: center;
-}
-
-/* ── RESULT SCREEN ── */
-#result {
-  position: fixed; inset: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none;
-  transition: opacity .4s;
-  padding: 24px;
-}
-
-#result.show { opacity: 1; pointer-events: all; }
-
-#result.ok   { background: #030e06; }
-#result.warn { background: #0e0800; }
-#result.err  { background: #0e0303; }
-
-.result-icon {
-  font-size: clamp(72px, 16vw, 120px);
-  margin-bottom: 16px;
-  animation: popIn .4s cubic-bezier(.34,1.56,.64,1);
-}
-
-@keyframes popIn {
-  from { transform: scale(0); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
-}
-
-.result-name {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(36px, 8vw, 72px);
-  letter-spacing: .1em;
-  text-align: center;
-  line-height: 1;
-  margin-bottom: 12px;
-  animation: slideUp .35s ease .1s both;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-
-.result-status {
-  font-size: clamp(13px, 3vw, 18px);
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  text-align: center;
-  margin-bottom: 24px;
-  animation: slideUp .35s ease .2s both;
-}
-
-#result.ok   .result-name   { color: var(--green); }
-#result.ok   .result-status { color: rgba(0,255,136,.6); }
-#result.warn .result-name   { color: var(--orange); }
-#result.warn .result-status { color: rgba(255,153,68,.6); }
-#result.err  .result-name   { color: var(--red); }
-#result.err  .result-status { color: rgba(255,51,51,.6); }
-
-.result-detail {
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.08);
-  padding: 16px 28px;
-  font-size: clamp(12px, 2.5vw, 15px);
-  color: var(--muted2);
-  letter-spacing: .08em;
-  text-align: center;
-  animation: slideUp .35s ease .3s both;
-  max-width: 400px;
-}
-
-.result-bar {
-  position: absolute;
-  bottom: 0; left: 0;
-  height: 4px;
-}
-
-#result.ok   .result-bar { background: var(--green); }
-#result.warn .result-bar { background: var(--orange); }
-#result.err  .result-bar { background: var(--red); }
-
-/* ── SETUP / NO-SUPPORT ── */
-#setup-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.92);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 100;
-  padding: 24px;
-}
-
-.setup-card {
-  background: #141414;
-  border: 1px solid #333;
-  padding: 32px 28px;
-  max-width: 440px; width: 100%;
-  position: relative;
-}
-
-.setup-card::before { content:''; position:absolute; top:0; left:0; width:40px; height:3px; background:var(--accent); }
-
-.setup-title {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 28px; letter-spacing: .12em;
-  color: var(--accent); margin-bottom: 8px;
-}
-
-.setup-body { font-size: 13px; color: var(--muted2); line-height: 1.8; margin-bottom: 24px; }
-.setup-body strong { color: var(--text); }
-.setup-body code { background: #0a0a0a; color: var(--accent); padding: 2px 6px; font-size: 12px; }
-
-.setup-inp-label { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted2); margin-bottom: 8px; display: block; font-weight: 600; }
-.setup-inp { width: 100%; background: #0a0a0a; border: 1px solid #333; color: var(--text); padding: 12px 14px; font-family: 'Barlow', sans-serif; font-size: 13px; outline: none; transition: border-color .2s; margin-bottom: 12px; }
-.setup-inp:focus { border-color: var(--accent); }
-
-.btn-setup { width: 100%; background: var(--accent); color: #000; border: none; padding: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: .14em; cursor: pointer; margin-bottom: 12px; }
-.setup-alt { font-size: 12px; color: var(--muted2); text-align: center; letter-spacing: .06em; cursor: pointer; }
-.setup-alt:hover { color: var(--text); }
-
-/* ── REGISTER MODAL ── */
-#reg-modal {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.92);
-  display: none; align-items: center; justify-content: center;
-  z-index: 200; padding: 20px;
-}
-#reg-modal.show { display: flex; }
-
-.reg-card {
-  background: #141414;
-  border: 1px solid #333;
-  padding: 28px 24px;
-  max-width: 400px; width: 100%;
-  position: relative;
-}
-.reg-card::before { content:''; position:absolute; top:0; left:0; width:40px; height:3px; background:var(--green); }
-
-.reg-title { font-family:'Bebas Neue',sans-serif; font-size:24px; letter-spacing:.12em; margin-bottom:6px; }
-.reg-sub   { font-size:12px; color:var(--muted2); margin-bottom:20px; letter-spacing:.06em; }
-
-.search-results { max-height: 200px; overflow-y: auto; margin-top: 8px; }
-.search-item { padding: 12px 14px; background: #0f0f0f; border: 1px solid #222; margin-bottom: 6px; cursor: pointer; transition: border-color .2s; }
-.search-item:hover { border-color: var(--accent); }
-.search-item-name { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: .08em; }
-.search-item-plan { font-size: 11px; color: var(--muted2); letter-spacing: .06em; }
-
-.btn-reg-fp { width: 100%; background: var(--green); color: #000; border: none; padding: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: .14em; cursor: pointer; margin-top: 16px; display: none; }
-.btn-close-reg { position: absolute; top: 14px; right: 16px; background: none; border: none; color: var(--muted2); font-size: 20px; cursor: pointer; }
-
-/* Admin FAB */
-.admin-fab {
-  position: fixed; bottom: 24px; right: 24px;
-  width: 44px; height: 44px;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 18px;
-  color: var(--muted); z-index: 50;
-  transition: all .2s;
-}
-.admin-fab:hover { border-color: var(--accent); color: var(--accent); }
-
-/* Progress bar countdown */
-.countdown-bar {
-  position: absolute; bottom: 0; left: 0; height: 4px;
-  transition: width linear;
-}
-#result.ok   .countdown-bar { background: var(--green); }
-#result.warn .countdown-bar { background: var(--orange); }
-#result.err  .countdown-bar { background: var(--red); }
-
-/* Toast */
-#toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:#1a1a1a; border:1px solid #333; padding:12px 20px; font-size:13px; letter-spacing:.04em; z-index:9999; opacity:0; transition:all .35s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; pointer-events:none; }
-#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-#toast.ok  { border-left:3px solid var(--green); }
-#toast.err { border-left:3px solid var(--red); }
-#toast.inf { border-left:3px solid var(--accent); }
-</style>
-</head>
-<body>
-
-<!-- IDLE -->
-<div id="idle" onclick="startCheckin()">
-  <div class="idle-bg"></div>
-  <div class="idle-logo">GymAdmin</div>
-  <div class="idle-sub">Sistema de acceso</div>
-
-  <div class="fp-ring-wrap">
-    <div class="fp-ring">
-      <span class="fp-icon">👆</span>
-    </div>
-    <div class="fp-label">Apoyá tu dedo para ingresar</div>
-  </div>
-
-  <div class="idle-clock">
-    <div class="clock-time" id="clock-time">00:00</div>
-    <div class="clock-date" id="clock-date">—</div>
-  </div>
-</div>
-
-<!-- SCANNING -->
-<div id="scanning">
-  <div class="scan-ring">
-    <span class="scan-icon">👆</span>
-  </div>
-  <div class="scan-label">Leyendo huella...</div>
-</div>
-
-<!-- RESULT -->
-<div id="result">
-  <div class="result-icon" id="result-icon">✓</div>
-  <div class="result-name" id="result-name">—</div>
-  <div class="result-status" id="result-status">—</div>
-  <div class="result-detail" id="result-detail">—</div>
-  <div class="countdown-bar" id="countdown-bar" style="width:100%"></div>
-</div>
-
-<!-- SETUP OVERLAY (primera vez o sin URL) -->
-<div id="setup-overlay" style="display:none">
-  <div class="setup-card">
-    <div class="setup-title">Configurar Check-in</div>
-    <div class="setup-body">
-      Esta pantalla de check-in se conecta con la misma app GymAdmin.<br><br>
-      <strong>Paso 1:</strong> Ingresá la URL de tu Google Apps Script (la misma que usaste en la app principal).<br><br>
-      <strong>Paso 2:</strong> Los socios deben registrar su huella <strong>una vez</strong> desde la app principal (tab Socios → botón "Registrar huella").<br><br>
-      <strong>Modo kiosco:</strong> En Chrome Android, menú ⋮ → <strong>Agregar a pantalla de inicio</strong>. Luego activá el modo de pantalla completa.
-    </div>
-    <label class="setup-inp-label">URL de Google Apps Script</label>
-    <input class="setup-inp" id="ci-url" type="url" placeholder="https://script.google.com/macros/s/...">
-    <button class="btn-setup" onclick="saveCheckinConfig()">GUARDAR Y CONTINUAR</button>
-    <div style="margin-top:20px;border-top:1px solid #222;padding-top:20px;">
-      <div class="setup-title" style="font-size:20px;margin-bottom:6px">Alertas por Telegram <span style="font-size:13px;color:var(--muted2);font-family:'Barlow',sans-serif;font-weight:400">(opcional)</span></div>
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:14px;line-height:1.7">
-        Para recibir alertas cuando un socio vencido intente entrar.<br>
-        Creá un bot en <strong style="color:var(--text)">@BotFather</strong> en Telegram y pegá los datos acá.
-      </div>
-      <label class="setup-inp-label">Token del bot</label>
-      <input class="setup-inp" id="ci-tg-token" type="text" placeholder="1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-      <label class="setup-inp-label" style="margin-top:10px">Chat ID</label>
-      <input class="setup-inp" id="ci-tg-chat" type="text" placeholder="123456789">
-      <button class="btn-setup" style="margin-top:10px;background:#229ED9" onclick="saveTelegramConfig()">GUARDAR TELEGRAM</button>
-    </div>
-    <div class="setup-alt" onclick="loadDemoMode()">Usar modo demo (sin Sheets)</div>
-  </div>
-</div>
-
-<!-- REGISTER MODAL (admin registra huella de socio) -->
-<div id="reg-modal">
-  <div class="reg-card">
-    <button class="btn-close-reg" onclick="closeRegModal()">✕</button>
-    <div class="reg-title">Registrar Huella</div>
-    <div class="reg-sub">Buscá al socio y registrá su huella dactilar</div>
-
-    <input type="text" class="setup-inp" id="reg-search" placeholder="Nombre o DNI del socio..." oninput="searchSocios()">
-    <div class="search-results" id="search-results"></div>
-
-    <div id="reg-selected" style="display:none;margin-top:12px;padding:12px;background:#0a0a0a;border:1px solid #333;">
-      <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px">Socio seleccionado</div>
-      <div class="search-item-name" id="reg-selected-name">—</div>
-    </div>
-
-    <button class="btn-reg-fp" id="btn-reg-fp" onclick="registerFingerprint()">
-      👆 REGISTRAR HUELLA
-    </button>
-
-    <div style="margin-top:24px;border-top:1px solid #222;padding-top:20px;">
-      <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:14px;font-weight:600">Configurar Telegram</div>
-      <label class="setup-inp-label">Token del bot</label>
-      <input class="setup-inp" id="tg-token-inp" type="text" placeholder="Token de BotFather">
-      <label class="setup-inp-label" style="margin-top:8px">Chat ID</label>
-      <input class="setup-inp" id="tg-chat-inp" type="text" placeholder="Tu Chat ID">
-      <button class="btn-setup" style="margin-top:10px;background:#229ED9;font-size:16px" onclick="saveTelegramFromModal()">GUARDAR</button>
-      <div id="tg-status" style="font-size:11px;color:var(--muted2);margin-top:8px;text-align:center"></div>
-    </div>
-
-    <div style="margin-top:16px;border-top:1px solid #222;padding-top:16px;">
-      <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;font-weight:600">Apps Script URL</div>
-      <input class="setup-inp" id="modal-script-url" type="url" placeholder="https://script.google.com/...">
-      <button class="btn-setup" style="margin-top:8px;font-size:16px" onclick="saveScriptFromModal()">GUARDAR URL</button>
-    </div>
-  </div>
-</div>
-
-<div class="admin-fab" onclick="openRegModal()" title="Registrar huella de socio">⚙</div>
-
-<div id="toast"></div>
-
-<script>
 // ============================================================
-const SCRIPT_URL_KEY = 'gym_checkin_url';
-const FP_KEY         = 'gym_fingerprints';   // { credentialId: socioId }
-const DEMO_MODE_KEY  = 'gym_checkin_demo';
+//  GymAdmin — Google Apps Script (Code.gs)
+//  Pegá TODO este código en tu proyecto de Apps Script
 // ============================================================
 
-let scriptUrl   = localStorage.getItem(SCRIPT_URL_KEY) || '';
-let isDemoMode  = localStorage.getItem(DEMO_MODE_KEY) === 'true';
-let fingerprints = JSON.parse(localStorage.getItem(FP_KEY) || '{}');
-let socios      = JSON.parse(localStorage.getItem('gym_socios') || '[]');
-let selectedSocio = null;
-let resultTimer = null;
+const SPREADSHEET_ID = ''; // Dejalo vacío: el script usa el Sheet donde está publicado
 
-// WebAuthn RP config
-const RP_ID   = location.hostname || 'localhost';
-const RP_NAME = 'GymAdmin';
-
-// ── INIT ──
-window.onload = () => {
-  startClock();
-  if (!scriptUrl && !isDemoMode) {
-    document.getElementById('setup-overlay').style.display = 'flex';
-  } else {
-    loadSociosFromStorage();
-    if (scriptUrl) syncSocios();
-  }
+// ── Cabeceras de cada hoja ──────────────────────────────────
+const HEADERS = {
+  Socios:  ['ID','Nombre','DNI','Telefono','Plan','Monto','Inicio','Vencimiento','Estado','Notas'],
+  Stock:   ['ID','Nombre','Categoria','Precio','Stock','Costo'],
+  Ventas:  ['ID','Fecha','Producto','Cantidad','Precio','Total'],
+  Alertas: ['ID','Fecha','Nombre','Plan','Vencimiento']
 };
 
-// ── CLOCK ──
-function startClock() {
-  function tick() {
-    const now  = new Date();
-    const time = now.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
-    const date = now.toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
-    document.getElementById('clock-time').textContent = time;
-    document.getElementById('clock-date').textContent = date;
+// ── Utilidad: obtener o crear una hoja ─────────────────────
+function getSheet(name) {
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  let   sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.appendRow(HEADERS[name]);
+    sheet.getRange(1, 1, 1, HEADERS[name].length)
+      .setBackground('#e8ff47')
+      .setFontWeight('bold');
+    sheet.setFrozenRows(1);
   }
-  tick();
-  setInterval(tick, 1000);
+  return sheet;
 }
 
-// ── SETUP ──
-function saveCheckinConfig() {
-  const url = document.getElementById('ci-url').value.trim();
-  if (!url || !url.startsWith('https://script.google.com')) {
-    showToast('URL inválida', 'err'); return;
-  }
-  scriptUrl = url;
-  localStorage.setItem(SCRIPT_URL_KEY, url);
-  localStorage.removeItem(DEMO_MODE_KEY);
-  isDemoMode = false;
-  document.getElementById('setup-overlay').style.display = 'none';
-  syncSocios();
-  showToast('✓ Configurado', 'ok');
-}
-
-function loadDemoMode() {
-  isDemoMode = true;
-  localStorage.setItem(DEMO_MODE_KEY, 'true');
-  // Load demo socios
-  socios = [
-    {id:'d1', nombre:'Lucía Torres',  plan:'Mensual',    vencimiento:'2026-04-01', status:'vigente',  monto:15000},
-    {id:'d2', nombre:'Matías Romero', plan:'Trimestral', vencimiento:'2026-05-15', status:'vigente',  monto:38000},
-    {id:'d3', nombre:'Carla Medina',  plan:'Mensual',    vencimiento:'2026-03-01', status:'vencido',  monto:15000},
-    {id:'d4', nombre:'Diego Fuentes', plan:'Anual',      vencimiento:'2027-01-10', status:'vigente',  monto:150000},
-  ];
-  localStorage.setItem('gym_socios', JSON.stringify(socios));
-  document.getElementById('setup-overlay').style.display = 'none';
-  showToast('Modo demo activo', 'inf');
-}
-
-function loadSociosFromStorage() {
-  socios = JSON.parse(localStorage.getItem('gym_socios') || '[]');
-}
-
-async function syncSocios() {
-  if (!scriptUrl) return;
-  try {
-    // Use GET to avoid CORS preflight issues with Google Apps Script
-    const url = scriptUrl + '?action=get_all&t=' + Date.now();
-    const res  = await fetch(url, { method: 'GET' });
-    const data = await res.json();
-    if (data.ok && data.data && data.data.Socios) {
-      socios = data.data.Socios.map(row => ({
-        id:          String(row['ID'] || '').trim(),
-        nombre:      row['Nombre'],
-        plan:        row['Plan'],
-        vencimiento: row['Vencimiento'],
-        monto:       row['Monto'],
-        status:      row['Estado'] || calcStatus(row['Vencimiento'])
-      })).filter(s => s.id);
-      localStorage.setItem('gym_socios', JSON.stringify(socios));
-    }
-  } catch(e) {
-    // Offline — use local cache
-    loadSociosFromStorage();
-  }
-}
-
-function calcStatus(v) {
-  if (!v) return 'pendiente';
-  const n = new Date(); n.setHours(0,0,0,0);
-  const d = new Date(String(v));
-  if (isNaN(d.getTime())) return 'pendiente';
-  // Compare date only (ignore time)
-  const dOnly = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  return dOnly >= n ? 'vigente' : 'vencido';
-}
-
-// ── CHECK-IN FLOW ──
-async function startCheckin() {
-  if (!isWebAuthnSupported()) {
-    showToast('Este dispositivo no soporta huella dactilar', 'err');
-    return;
-  }
-
-  // Check if any fingerprints registered
-  if (Object.keys(fingerprints).length === 0) {
-    showToast('Primero registrá la huella de un socio (⚙)', 'inf');
-    return;
-  }
-
-  showScreen('scanning');
-
-  try {
-    const credentialIds = Object.keys(fingerprints).map(id => ({
-      id: base64ToBuffer(id),
-      type: 'public-key'
-    }));
-
-    const assertion = await navigator.credentials.get({
-      publicKey: {
-        challenge:        crypto.getRandomValues(new Uint8Array(32)),
-        rpId:             RP_ID,
-        allowCredentials: credentialIds,
-        userVerification: 'required',  // forces biometric
-        timeout:          30000
-      }
-    });
-
-    const credId    = bufferToBase64(assertion.rawId);
-    const socioId   = fingerprints[credId];
-    const socio     = socios.find(s => s.id === socioId);
-
-    showScreen('idle');
-
-    if (!socio) {
-      showResult('err', '?', 'Socio no encontrado', 'La huella está registrada pero el socio no existe en el sistema.');
-      return;
-    }
-
-    // Check membership
-    const now  = new Date(); now.setHours(0,0,0,0);
-    const venc = socio.vencimiento ? new Date(String(socio.vencimiento)) : null;
-    const daysLeft = venc ? Math.ceil((venc - now) / 86400000) : null;
-
-    if (socio.status === 'vigente' && daysLeft !== null && daysLeft > 0) {
-      const detail = daysLeft <= 7
-        ? `⚠ Vence en ${daysLeft} día${daysLeft===1?'':'s'} · ${socio.plan}`
-        : `Membresía al día · ${socio.plan} · Vence ${formatDate(socio.vencimiento)}`;
-      playOkSound();
-      showResult(daysLeft <= 7 ? 'warn' : 'ok', '✓', socio.nombre, detail);
-    } else {
-      playDeniedSound();
-      showResult('err', '✗', socio.nombre,
-        `Membresía vencida${venc ? ' el ' + formatDate(socio.vencimiento) : ''} · ${socio.plan}`);
-      // Notify admin via Sheet
-      notifyAdmin(socio);
-    }
-
-  } catch(e) {
-    showScreen('idle');
-    if (e.name === 'NotAllowedError') {
-      // User cancelled or timeout — just go back to idle
-    } else {
-      showToast('Error al leer la huella', 'err');
-    }
-  }
-}
-
-function showScreen(name) {
-  document.getElementById('idle').style.opacity     = name==='idle'     ? '1' : '0';
-  document.getElementById('idle').style.pointerEvents = name==='idle'   ? 'all' : 'none';
-  document.getElementById('scanning').classList.toggle('show', name==='scanning');
-  if (name !== 'result') {
-    document.getElementById('result').classList.remove('show','ok','warn','err');
-  }
-}
-
-function showResult(type, icon, name, detail) {
-  clearTimeout(resultTimer);
-  const el     = document.getElementById('result');
-  const bar    = document.getElementById('countdown-bar');
-  const DURATION = type === 'ok' ? 4000 : type === 'warn' ? 6000 : 5000;
-
-  document.getElementById('result-icon').textContent   = icon;
-  document.getElementById('result-name').textContent   = name;
-  document.getElementById('result-status').textContent =
-    type === 'ok'   ? '✓ ACCESO PERMITIDO' :
-    type === 'warn' ? '⚠ ATENCIÓN' :
-                     '✗ ACCESO DENEGADO';
-  document.getElementById('result-detail').textContent = detail;
-
-  el.className = 'show ' + type;
-
-  // Countdown bar
-  bar.style.transition = 'none';
-  bar.style.width = '100%';
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      bar.style.transition = `width ${DURATION}ms linear`;
-      bar.style.width = '0%';
-    });
+// ── Leer toda una hoja como array de objetos ───────────────
+function sheetToObjects(sheet, headers) {
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];           // solo cabecera o vacío
+  const keys = data[0];
+  return data.slice(1).map(row => {
+    const obj = {};
+    keys.forEach((k, i) => { obj[k] = row[i]; });
+    return obj;
   });
-
-  resultTimer = setTimeout(() => {
-    el.classList.remove('show','ok','warn','err');
-    // Re-sync socios periodically
-    if (scriptUrl) syncSocios();
-  }, DURATION);
 }
 
-function formatDate(d) {
-  if (!d) return '';
-  // Handle JS Date objects from Google Sheets (e.g. "2026-03-21T00:00:00.000Z")
-  const str = String(d);
-  const date = new Date(str);
-  if (!isNaN(date.getTime())) {
-    const y   = date.getUTCFullYear();
-    const m   = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
-    return `${day}/${m}/${y}`;
-  }
-  // Fallback: plain YYYY-MM-DD string
-  const parts = str.split('-');
-  if (parts.length >= 3) return `${parts[2].slice(0,2)}/${parts[1]}/${parts[0]}`;
-  return str;
-}
+// ── doGet: devuelve todos los datos (llamada GET desde la app) ─
+function doGet(e) {
+  const action = e && e.parameter && e.parameter.action;
 
-// ── REGISTER FINGERPRINT ──
-function saveTelegramFromModal() {
-  const token  = document.getElementById('tg-token-inp').value.trim();
-  const chatId = document.getElementById('tg-chat-inp').value.trim();
-  if (!token || !chatId) { showToast('Completá los dos campos', 'err'); return; }
-  TG_TOKEN   = token;
-  TG_CHAT_ID = chatId;
-  localStorage.setItem('gym_tg_token',   token);
-  localStorage.setItem('gym_tg_chat_id', chatId);
-  document.getElementById('tg-status').textContent = '✓ Guardado';
-  showToast('✓ Telegram actualizado', 'ok');
-  // Test message
-  testTelegram();
-}
+  if (action === 'get_all') {
+    try {
+      const socios  = sheetToObjects(getSheet('Socios'),  HEADERS.Socios);
+      const stock   = sheetToObjects(getSheet('Stock'),   HEADERS.Stock);
+      const ventas  = sheetToObjects(getSheet('Ventas'),  HEADERS.Ventas);
 
-async function testTelegram() {
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ chat_id: TG_CHAT_ID, text: '✅ GymAdmin conectado correctamente.' })
-    });
-    const r = await res.json();
-    if (r.ok) {
-      document.getElementById('tg-status').textContent = '✓ Mensaje de prueba enviado a Telegram';
-    } else {
-      document.getElementById('tg-status').textContent = '⚠ Error: ' + (r.description || 'revisar token y chat ID');
+      const result = ContentService
+        .createTextOutput(JSON.stringify({ ok: true, data: { Socios: socios, Stock: stock, Ventas: ventas } }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+      return result;
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
-  } catch(e) {
-    document.getElementById('tg-status').textContent = '⚠ No se pudo conectar';
   }
+
+  // Default: ping de estado
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok: true, message: 'GymAdmin API activa' }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-function saveScriptFromModal() {
-  const url = document.getElementById('modal-script-url').value.trim();
-  if (!url || !url.startsWith('https://script.google.com')) {
-    showToast('URL inválida', 'err'); return;
-  }
-  scriptUrl = url;
-  localStorage.setItem(SCRIPT_URL_KEY, url);
-  showToast('✓ URL guardada', 'ok');
-  syncSocios();
-}
-
-function saveTelegramConfig() {
-  const token  = document.getElementById('ci-tg-token') ? document.getElementById('ci-tg-token').value.trim() : '';
-  const chatId = document.getElementById('ci-tg-chat')  ? document.getElementById('ci-tg-chat').value.trim()  : '';
-  if (!token || !chatId) { showToast('Completá token y Chat ID', 'err'); return; }
-  TG_TOKEN   = token;
-  TG_CHAT_ID = chatId;
-  localStorage.setItem('gym_tg_token',   token);
-  localStorage.setItem('gym_tg_chat_id', chatId);
-  showToast('✓ Telegram configurado', 'ok');
-}
-
-function openRegModal() {
-  loadSociosFromStorage();
-  document.getElementById('reg-modal').classList.add('show');
-  document.getElementById('reg-search').value = '';
-  document.getElementById('search-results').innerHTML = '';
-  document.getElementById('reg-selected').style.display = 'none';
-  document.getElementById('btn-reg-fp').style.display = 'none';
-  selectedSocio = null;
-  // Pre-fill config fields
-  if (document.getElementById('tg-token-inp')) {
-    document.getElementById('tg-token-inp').value = TG_TOKEN || '';
-    document.getElementById('tg-chat-inp').value  = TG_CHAT_ID || '';
-    document.getElementById('tg-status').textContent = TG_TOKEN ? '✓ Configurado' : '';
-  }
-  if (document.getElementById('modal-script-url')) {
-    document.getElementById('modal-script-url').value = scriptUrl || '';
-  }
-}
-
-function closeRegModal() {
-  document.getElementById('reg-modal').classList.remove('show');
-}
-
-function searchSocios() {
-  const q = document.getElementById('reg-search').value.toLowerCase();
-  if (!q) { document.getElementById('search-results').innerHTML = ''; return; }
-  const results = socios.filter(s =>
-    s.nombre.toLowerCase().includes(q) || (s.dni||'').includes(q)
-  ).slice(0, 6);
-
-  document.getElementById('search-results').innerHTML = results.map(s => `
-    <div class="search-item" onclick="selectSocio('${s.id}')">
-      <div class="search-item-name">${s.nombre}</div>
-      <div class="search-item-plan">${s.plan} · ${s.status}</div>
-    </div>`).join('') || '<div style="padding:12px;font-size:12px;color:var(--muted2)">Sin resultados</div>';
-}
-
-function selectSocio(id) {
-  selectedSocio = socios.find(s => s.id === id);
-  if (!selectedSocio) return;
-  document.getElementById('reg-selected-name').textContent = selectedSocio.nombre + ' · ' + selectedSocio.plan;
-  document.getElementById('reg-selected').style.display = 'block';
-  document.getElementById('btn-reg-fp').style.display   = 'block';
-  document.getElementById('search-results').innerHTML   = '';
-  document.getElementById('reg-search').value           = '';
-}
-
-async function registerFingerprint() {
-  if (!selectedSocio) { showToast('Seleccioná un socio primero', 'err'); return; }
-  if (!isWebAuthnSupported()) { showToast('Este dispositivo no soporta huella dactilar', 'err'); return; }
-
+// ── doPost: recibe cambios desde la app ─────────────────────
+function doPost(e) {
   try {
-    showToast('Apoyá el dedo en el sensor...', 'inf');
+    const payload = JSON.parse(e.postData.contents);
+    const action  = payload.action;
 
-    const credential = await navigator.credentials.create({
-      publicKey: {
-        challenge:  crypto.getRandomValues(new Uint8Array(32)),
-        rp:         { id: RP_ID, name: RP_NAME },
-        user: {
-          id:          new TextEncoder().encode(selectedSocio.id),
-          name:        selectedSocio.nombre,
-          displayName: selectedSocio.nombre
-        },
-        pubKeyCredParams: [
-          { alg: -7,   type: 'public-key' },  // ES256
-          { alg: -257, type: 'public-key' }   // RS256
-        ],
-        authenticatorSelection: {
-          authenticatorAttachment: 'platform',   // use device sensor
-          userVerification:        'required',   // forces biometric
-          residentKey:             'preferred'
-        },
-        timeout: 60000
+    if (action === 'sync_socios') {
+      syncSocios(payload.data);
+      return jsonOk({ synced: payload.data.length });
+    }
+
+    if (action === 'sync_stock') {
+      syncStock(payload.data);
+      return jsonOk({ synced: payload.data.length });
+    }
+
+    if (action === 'sync_ventas') {
+      syncVentas(payload.data);
+      return jsonOk({ synced: payload.data.length });
+    }
+
+    if (action === 'sync_alerta') {
+      guardarAlerta(payload.data);
+      return jsonOk({});
+    }
+
+    return jsonOk({ message: 'Acción desconocida: ' + action });
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ── Sync Socios ─────────────────────────────────────────────
+function syncSocios(records) {
+  if (!records || !records.length) return;
+  const sheet   = getSheet('Socios');
+  const data    = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idCol   = headers.indexOf('ID');
+
+  // Crear mapa de filas existentes: ID → rowIndex (1-based, sin cabecera)
+  const rowMap = {};
+  for (let i = 1; i < data.length; i++) {
+    rowMap[String(data[i][idCol])] = i + 1; // +1 porque las filas del sheet empiezan en 1
+  }
+
+  records.forEach(rec => {
+    const row = buildSocioRow(rec, headers);
+    const existingRow = rowMap[String(rec.id || rec.ID)];
+    if (existingRow) {
+      sheet.getRange(existingRow, 1, 1, row.length).setValues([row]);
+    } else {
+      sheet.appendRow(row);
+    }
+  });
+}
+
+function buildSocioRow(rec, headers) {
+  return headers.map(h => {
+    switch (h) {
+      case 'ID':          return rec.id          || rec.ID          || '';
+      case 'Nombre':      return rec.nombre       || rec.Nombre      || '';
+      case 'DNI':         return rec.dni          || rec.DNI         || '';
+      case 'Telefono':    return rec.telefono     || rec.Telefono    || '';
+      case 'Plan':        return rec.plan         || rec.Plan        || '';
+      case 'Monto':       return rec.monto        || rec.Monto       || '';
+      case 'Inicio':      return rec.inicio       || rec.Inicio      || '';
+      case 'Vencimiento': return rec.vencimiento  || rec.Vencimiento || '';
+      case 'Estado':      return rec.status       || rec.Estado      || '';
+      case 'Notas':       return rec.notas        || rec.Notas       || '';
+      default:            return '';
+    }
+  });
+}
+
+// ── Sync Stock ──────────────────────────────────────────────
+function syncStock(records) {
+  if (!records || !records.length) return;
+  const sheet   = getSheet('Stock');
+  const data    = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idCol   = headers.indexOf('ID');
+
+  const rowMap = {};
+  for (let i = 1; i < data.length; i++) {
+    rowMap[String(data[i][idCol])] = i + 1;
+  }
+
+  records.forEach(rec => {
+    const row = headers.map(h => {
+      switch (h) {
+        case 'ID':        return rec.id        || '';
+        case 'Nombre':    return rec.nombre     || '';
+        case 'Categoria': return rec.categoria  || '';
+        case 'Precio':    return rec.precio     || '';
+        case 'Stock':     return rec.stock      || '';
+        case 'Costo':     return rec.costo      || '';
+        default:          return '';
       }
     });
-
-    const credId = bufferToBase64(credential.rawId);
-    fingerprints[credId] = selectedSocio.id;
-    localStorage.setItem(FP_KEY, JSON.stringify(fingerprints));
-
-    closeRegModal();
-    showToast(`✓ Huella de ${selectedSocio.nombre} registrada`, 'ok');
-    selectedSocio = null;
-
-  } catch(e) {
-    if (e.name === 'NotAllowedError') {
-      showToast('Registro cancelado', 'err');
+    const existingRow = rowMap[String(rec.id)];
+    if (existingRow) {
+      sheet.getRange(existingRow, 1, 1, row.length).setValues([row]);
     } else {
-      showToast('Error: ' + e.message, 'err');
+      sheet.appendRow(row);
     }
-  }
+  });
 }
 
-// ── NOTIFICAR ADMIN ──
-let TG_TOKEN   = localStorage.getItem('gym_tg_token')  || '';
-let TG_CHAT_ID = localStorage.getItem('gym_tg_chat_id') || '';
+// ── Sync Ventas ─────────────────────────────────────────────
+function syncVentas(records) {
+  if (!records || !records.length) return;
+  const sheet   = getSheet('Ventas');
+  const data    = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idCol   = headers.indexOf('ID');
 
-function playDeniedSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    // Three descending beeps — alarm feel
-    [0, 0.25, 0.5].forEach((delay, i) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type      = 'square';
-      osc.frequency.value = 440 - (i * 80);  // 440, 360, 280 Hz
-      gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.2);
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + 0.2);
+  const existingIds = new Set(data.slice(1).map(r => String(r[idCol])));
+
+  records.forEach(rec => {
+    if (existingIds.has(String(rec.id))) return; // no duplicar ventas
+    const row = headers.map(h => {
+      switch (h) {
+        case 'ID':        return rec.id        || '';
+        case 'Fecha':     return rec.fecha      || '';
+        case 'Producto':  return rec.producto   || '';
+        case 'Cantidad':  return rec.cantidad   || '';
+        case 'Precio':    return rec.precio     || '';
+        case 'Total':     return rec.total      || '';
+        default:          return '';
+      }
     });
-  } catch(e) {}
+    sheet.appendRow(row);
+  });
 }
 
-function playOkSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    // Two ascending beeps — success feel
-    [0, 0.18].forEach((delay, i) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type      = 'sine';
-      osc.frequency.value = 520 + (i * 160);  // 520, 680 Hz
-      gain.gain.setValueAtTime(0.2, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.18);
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + 0.18);
-    });
-  } catch(e) {}
+// ── Guardar Alerta de Acceso Denegado ───────────────────────
+function guardarAlerta(rec) {
+  if (!rec) return;
+  const sheet   = getSheet('Alertas');
+  const headers = HEADERS.Alertas;
+  const row     = headers.map(h => {
+    switch (h) {
+      case 'ID':          return rec.id          || 'a' + Date.now();
+      case 'Fecha':       return rec.fecha        || new Date().toLocaleString('es-AR');
+      case 'Nombre':      return rec.nombre       || '';
+      case 'Plan':        return rec.plan         || '';
+      case 'Vencimiento': return rec.vencimiento  || '';
+      default:            return '';
+    }
+  });
+  sheet.appendRow(row);
 }
 
-async function notifyAdmin(socio) {
-  const hora = new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
-  const venc = socio.vencimiento ? formatDate(String(socio.vencimiento)) : '—';
-  const msg  = `🚨 *Acceso denegado*\n👤 ${socio.nombre}\n📋 ${socio.plan}\n📅 Venció el ${venc}\n🕐 ${hora}hs`;
-
-  try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        chat_id:    TG_CHAT_ID,
-        text:       msg,
-        parse_mode: 'Markdown'
-      })
-    });
-  } catch(e) {}
-
-  // Also log to Sheet
-  if (!scriptUrl) return;
-  try {
-    await fetch(scriptUrl, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'sync_alerta',
-        data: {
-          id:          'a' + Date.now(),
-          fecha:       new Date().toLocaleString('es-AR'),
-          nombre:      socio.nombre,
-          plan:        socio.plan,
-          vencimiento: venc
-        }
-      })
-    });
-  } catch(e) {}
+// ── Helper: respuesta JSON ok ──────────────────────────────
+function jsonOk(extra) {
+  return ContentService
+    .createTextOutput(JSON.stringify(Object.assign({ ok: true }, extra)))
+    .setMimeType(ContentService.MimeType.JSON);
 }
-
-// ── WEBAUTHN UTILS ──
-function isWebAuthnSupported() {
-  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
-}
-
-function bufferToBase64(buffer) {
-  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
-    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-}
-
-function base64ToBuffer(base64) {
-  const b64 = base64.replace(/-/g,'+').replace(/_/g,'/');
-  const bin = atob(b64);
-  return new Uint8Array([...bin].map(c => c.charCodeAt(0))).buffer;
-}
-
-// ── TOAST ──
-let toastT;
-function showToast(msg, type='inf') {
-  clearTimeout(toastT);
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = 'show ' + type;
-  toastT = setTimeout(() => { t.className = ''; }, 3000);
-}
-</script>
-</body>
-</html>
