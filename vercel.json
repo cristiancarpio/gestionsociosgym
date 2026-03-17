@@ -1,22 +1,19 @@
 {
+  "rewrites": [
+    { "source": "/api/proxy", "destination": "/api/proxy.js" }
+  ],
   "headers": [
     {
       "source": "/(.*).html",
-      "headers": [
-        { "key": "Content-Type", "value": "text/html; charset=utf-8" }
-      ]
+      "headers": [{ "key": "Content-Type", "value": "text/html; charset=utf-8" }]
     },
     {
       "source": "/(.*).js",
-      "headers": [
-        { "key": "Content-Type", "value": "application/javascript" }
-      ]
+      "headers": [{ "key": "Content-Type", "value": "application/javascript" }]
     },
     {
       "source": "/(.*).json",
-      "headers": [
-        { "key": "Content-Type", "value": "application/json" }
-      ]
+      "headers": [{ "key": "Content-Type", "value": "application/json" }]
     }
   ]
 }

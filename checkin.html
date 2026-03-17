@@ -749,7 +749,8 @@ function loadSociosFromStorage() {
 async function syncSocios() {
   if (!scriptUrl) return;
   try {
-    const data = await jsonpFetch(scriptUrl + '?action=get_all&t=' + Date.now());
+    const res  = await fetch('/api/proxy?url=' + encodeURIComponent(scriptUrl) + '&action=get_all&t=' + Date.now());
+    const data = await res.json();
     if (data.ok && data.data && data.data.Socios) {
       socios = data.data.Socios.map(row => ({
         id:          String(row['ID'] || '').trim(),
@@ -763,25 +764,8 @@ async function syncSocios() {
       localStorage.setItem('gym_socios', JSON.stringify(socios));
     }
   } catch(e) {
-    // Offline — use local cache
     loadSociosFromStorage();
   }
-}
-
-function jsonpFetch(url) {
-  return new Promise((resolve, reject) => {
-    const cbName = 'gjsonp_' + Date.now();
-    const script = document.createElement('script');
-    const timer  = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 15000);
-    window[cbName] = (data) => { cleanup(); resolve(data); };
-    function cleanup() {
-      clearTimeout(timer); delete window[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    }
-    script.onerror = () => { cleanup(); reject(new Error('error')); };
-    script.src = url + '&callback=' + cbName;
-    document.head.appendChild(script);
-  });
 }
 
 function calcStatus(v) {
@@ -1225,10 +1209,9 @@ async function notifyAdmin(socio) {
   // Also log to Sheet
   if (!scriptUrl) return;
   try {
-    await fetch(scriptUrl, {
+    await fetch('/api/proxy?url=' + encodeURIComponent(scriptUrl), {
       method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'sync_alerta',
         data: {
