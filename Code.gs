@@ -4,16 +4,18 @@
 //  como "Nueva implementación → Aplicación web"
 // ============================================================
 
-const SHEET_NAME_SOCIOS  = 'Socios';
-const SHEET_NAME_ALERTAS = 'Alertas';
-const SHEET_NAME_STOCK   = 'Stock';
-const SHEET_NAME_VENTAS  = 'Ventas';
+const SHEET_NAME_SOCIOS   = 'Socios';
+const SHEET_NAME_ALERTAS  = 'Alertas';
+const SHEET_NAME_STOCK    = 'Stock';
+const SHEET_NAME_VENTAS   = 'Ventas';
+const SHEET_NAME_INGRESOS = 'Ingresos';
 
 // ── HEADERS — orden exacto del Sheet real ──
-const HEADERS_SOCIOS  = ['ID','Fecha Registro','Nombre','DNI','Teléfono','Email','Plan','Monto','Fecha Pago','Vencimiento','Estado','Notas'];
-const HEADERS_ALERTAS = ['ID','Fecha','Nombre','Plan','Vencimiento','Leída'];
-const HEADERS_STOCK   = ['ID','Nombre','Cantidad','Precio','Categoría'];
-const HEADERS_VENTAS  = ['ID','Fecha','Producto','Cantidad','Total','Método'];
+const HEADERS_SOCIOS   = ['ID','Fecha Registro','Nombre','DNI','Teléfono','Email','Plan','Monto','Fecha Pago','Vencimiento','Estado','Notas'];
+const HEADERS_ALERTAS  = ['ID','Fecha','Nombre','Plan','Vencimiento','Leída'];
+const HEADERS_STOCK    = ['ID','Nombre','Cantidad','Precio','Categoría'];
+const HEADERS_VENTAS   = ['ID','Fecha','Producto','Cantidad','Total','Método'];
+const HEADERS_INGRESOS = ['ID','Fecha','Hora','Nombre','Plan','Tipo','Vencimiento'];
 
 function getOrCreateSheet(ss, name, headers) {
   let sheet = ss.getSheetByName(name);
@@ -38,14 +40,16 @@ function doGet(e) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     if (action === 'get_all') {
-      const sheetSocios  = getOrCreateSheet(ss, SHEET_NAME_SOCIOS,  HEADERS_SOCIOS);
-      const sheetAlertas = getOrCreateSheet(ss, SHEET_NAME_ALERTAS, HEADERS_ALERTAS);
+      const sheetSocios   = getOrCreateSheet(ss, SHEET_NAME_SOCIOS,   HEADERS_SOCIOS);
+      const sheetAlertas  = getOrCreateSheet(ss, SHEET_NAME_ALERTAS,  HEADERS_ALERTAS);
+      const sheetIngresos = getOrCreateSheet(ss, SHEET_NAME_INGRESOS, HEADERS_INGRESOS);
 
       result = {
         ok: true,
         data: {
-          Socios:  sheetToArray(sheetSocios),
-          Alertas: sheetToArray(sheetAlertas)
+          Socios:   sheetToArray(sheetSocios),
+          Alertas:  sheetToArray(sheetAlertas),
+          Ingresos: sheetToArray(sheetIngresos)
         }
       };
     } else {
@@ -88,6 +92,15 @@ function doPost(e) {
       return jsonResponse({ ok: true });
     }
 
+    if (action === 'sync_ingreso') {
+      const sheet = getOrCreateSheet(ss, SHEET_NAME_INGRESOS, HEADERS_INGRESOS);
+      const d = payload.data;
+      const fecha = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+      const hora  = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+      sheet.appendRow([d.id, d.fecha||fecha, d.hora||hora, d.nombre, d.plan, d.tipo, d.venc||'']);
+      return jsonResponse({ ok: true });
+    }
+
     if (action === 'sync_alerta') {
       const sheet = getOrCreateSheet(ss, SHEET_NAME_ALERTAS, HEADERS_ALERTAS);
       const d = payload.data;
@@ -119,12 +132,26 @@ function doPost(e) {
 function sheetToArray(sheet) {
   const data = sheet.getDataRange().getValues();
   if (data.length < 2) return [];
-  const headers = data[0];
-  return data.slice(1).map(row => {
-    const obj = {};
-    headers.forEach((h, i) => { obj[h] = row[i]; });
-    return obj;
-  });
+
+  // Find the real header row — first row where first cell is 'ID'
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(data.length, 5); i++) {
+    if (String(data[i][0]).trim() === 'ID') {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  const headers = data[headerRowIndex].map(h => String(h).trim());
+  return data.slice(headerRowIndex + 1)
+    .filter(row => row[0] && String(row[0]).trim() !== '')
+    .map(row => {
+      const obj = {};
+      headers.forEach((h, i) => {
+        obj[h] = row[i] !== undefined && row[i] !== null ? row[i] : '';
+      });
+      return obj;
+    });
 }
 
 function upsertRows(sheet, headers, records) {

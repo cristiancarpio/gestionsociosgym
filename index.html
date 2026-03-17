@@ -1026,31 +1026,55 @@ let seenAlertIds = new Set(JSON.parse(localStorage.getItem('gym_seen_alerts') ||
 async function pollAlerts() {
   if (!SCRIPT_URL || !isOnline) return;
   try {
-    const r = await jsonpFetch(SCRIPT_URL + '?action=get_all&t=' + Date.now());
-    if (!r.ok || !r.data || !r.data.Alertas) return;
+    const res = await fetch('/api/proxy?url=' + encodeURIComponent(SCRIPT_URL) + '&action=get_all&t=' + Date.now());
+    const r   = await res.json();
+    if (!r.ok || !r.data) return;
 
-    alertas = r.data.Alertas.map(a => ({
-      id:          String(a['ID'] || ''),
-      fecha:       a['Fecha']       || '',
-      nombre:      a['Nombre']      || '',
-      plan:        a['Plan']        || '',
-      vencimiento: a['Vencimiento'] || '',
-      leida:       String(a['Leída'] || 'no') === 'si'
-    })).filter(a => a.id);
+    // Process alerts
+    if (r.data.Alertas) {
+      alertas = r.data.Alertas.map(a => ({
+        id:          String(a['ID'] || ''),
+        fecha:       a['Fecha']       || '',
+        nombre:      a['Nombre']      || '',
+        plan:        a['Plan']        || '',
+        vencimiento: a['Vencimiento'] || '',
+        leida:       String(a['Leída'] || 'no') === 'si'
+      })).filter(a => a.id);
 
-    const unread = alertas.filter(a => !seenAlertIds.has(a.id) && !a.leida);
-    const bell   = document.getElementById('alert-bell');
-    const count  = document.getElementById('alert-count');
+      const unread = alertas.filter(a => !seenAlertIds.has(a.id) && !a.leida);
+      const bell   = document.getElementById('alert-bell');
+      const count  = document.getElementById('alert-count');
+      if (unread.length > 0) {
+        bell.style.display = 'block';
+        count.textContent  = unread.length;
+      } else {
+        bell.style.display = alertas.length ? 'block' : 'none';
+        count.style.display = 'none';
+      }
+    }
 
-    if (unread.length > 0) {
-      bell.style.display = 'block';
-      count.textContent  = unread.length;
-      // Show toast for newest alert
-      const newest = unread[unread.length - 1];
-      showToast(`🔔 ${newest.nombre} — membresía vencida`, 'error');
-    } else {
-      bell.style.display = alertas.length ? 'block' : 'none';
-      count.style.display = 'none';
+    // Sync ingresos from Sheet — pick up checkin entries from other device
+    if (r.data.Ingresos && r.data.Ingresos.length) {
+      const sheetIngresos = r.data.Ingresos.map(row => {
+        const id = String(row['ID'] || '').trim();
+        if (!id) return null;
+        return { id, tipo:String(row['Tipo']||'ok').toLowerCase(), nombre:row['Nombre']||'—', plan:row['Plan']||'—', hora:row['Hora']||'', fecha:row['Fecha']||'', venc:row['Vencimiento']||'' };
+      }).filter(Boolean);
+
+      const local    = JSON.parse(localStorage.getItem(INGRESOS_KEY) || '[]');
+      const localIds = new Set(local.map(r => String(r.id)));
+      const newOnes  = sheetIngresos.filter(r => !localIds.has(String(r.id)));
+
+      if (newOnes.length) {
+        newOnes.forEach(ev => {
+          showAccessAlarm({ type: ev.tipo==='ok' ? 'access_ok' : 'access_denied', nombre:ev.nombre, plan:ev.plan, hora:ev.hora, venc:ev.venc });
+        });
+        const merged = [...newOnes, ...local].slice(0, 200);
+        localStorage.setItem(INGRESOS_KEY, JSON.stringify(merged));
+        updateIngresosBadge();
+        const tab = document.getElementById('tab-ingresos');
+        if (tab && tab.classList.contains('active')) renderIngresos();
+      }
     }
   } catch(e) {}
 }
@@ -1089,8 +1113,8 @@ function markAllRead() {
   showToast('✓ Alertas marcadas como leídas', 'success');
 }
 
-// Poll every 30 seconds
-setInterval(pollAlerts, 30000);
+// Poll every 10 seconds
+setInterval(pollAlerts, 10000);
 
 // ── EDIT MODAL
 let editingId = null;
@@ -1237,7 +1261,7 @@ function showAccessAlarm(ev) {
 
   alarm.appendChild(card);
   clearTimeout(alarmTimer);
-  alarmTimer = setTimeout(() => dismissAlarm(id), isOk ? 5000 : 10000);
+  alarmTimer = setTimeout(() => dismissAlarm(id), isOk ? 8000 : 20000);
 
   // Flash title only for denied
   if (!isOk) {

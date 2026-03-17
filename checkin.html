@@ -500,14 +500,28 @@ function calcStatus(v) {
 
 // ── NOTIFY ──
 function broadcastAccess(payload) {
-  try { localStorage.setItem('gym_last_access', JSON.stringify({...payload, hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}), ts:Date.now()})); } catch(e){}
+  // Save to Sheet so admin can see it
+  const entry = {
+    id:     'i' + Date.now(),
+    nombre: payload.nombre || '—',
+    plan:   payload.plan   || '—',
+    tipo:   payload.type === 'access_ok' ? 'ok' : 'denegado',
+    hora:   new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),
+    fecha:  new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}),
+    venc:   payload.venc || ''
+  };
+  if (scriptUrl) {
+    fetch('/api/proxy?url=' + encodeURIComponent(scriptUrl), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'sync_ingreso', data: entry })
+    }).catch(()=>{});
+  }
 }
 
 async function notifyDenied(socio) {
   const hora = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
   const venc = socio.vencimiento ? formatDate(String(socio.vencimiento)) : '—';
-  broadcastAccess({ type:'access_denied', nombre:socio.nombre, plan:socio.plan, venc });
-  if (TG_TOKEN && TG_CHAT_ID) {
+  broadcastAccess({ type:'access_denied', nombre:socio.nombre, plan:socio.plan, venc });  if (TG_TOKEN && TG_CHAT_ID) {
     const msg = `🚨 *Acceso denegado*\n👤 ${socio.nombre}\n📋 ${socio.plan}\n📅 Venció el ${venc}\n🕐 ${hora}hs`;
     try { await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({chat_id:TG_CHAT_ID, text:msg, parse_mode:'Markdown'}) }); } catch(e){}
   }
