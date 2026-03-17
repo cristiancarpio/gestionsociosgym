@@ -191,6 +191,28 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-thumb{background:var(--border2);}
 
+/* ── INGRESOS LOG ── */
+.ingreso-row {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 14px;
+  background:var(--card); border:1px solid var(--border);
+  margin-bottom:8px;
+  border-left:3px solid;
+  animation: fadeInRow .3s ease;
+}
+@keyframes fadeInRow { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+.ingreso-row.ok      { border-left-color:var(--green); }
+.ingreso-row.warn    { border-left-color:var(--orange); }
+.ingreso-row.denegado{ border-left-color:var(--red); }
+.ingreso-icon { font-size:20px; flex-shrink:0; width:28px; text-align:center; }
+.ingreso-body { flex:1; }
+.ingreso-nombre { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:.06em; line-height:1; }
+.ingreso-row.ok       .ingreso-nombre { color:var(--green); }
+.ingreso-row.warn     .ingreso-nombre { color:var(--orange); }
+.ingreso-row.denegado .ingreso-nombre { color:var(--red); }
+.ingreso-meta { font-size:11px; color:var(--muted2); margin-top:3px; }
+.ingreso-hora { font-size:12px; color:var(--muted2); flex-shrink:0; font-weight:600; }
+
 /* ── LIVE ACCESS ALARM ── */
 #access-alarm {
   position: fixed;
@@ -335,6 +357,10 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
       Socios
       <span class="badge" id="pending-badge">0</span>
     </div>
+    <div class="nav-tab" data-tab="ingresos">
+      Ingresos
+      <span class="badge" id="ingresos-badge">0</span>
+    </div>
     <div class="nav-tab" data-tab="nuevo">Nuevo</div>
     <div class="nav-tab" data-tab="stats">Resumen</div>
   </div>
@@ -446,9 +472,43 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
   </div>
 </div>
 
+<!-- TAB: INGRESOS -->
+<div class="tab-content" id="tab-ingresos" style="display:none;flex-direction:column;">
+  <div class="list-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+      <div>
+        <div class="section-title">Ingresos</div>
+        <div class="section-sub" id="ingresos-sub">Registro de accesos del día</div>
+      </div>
+      <button class="filter-btn" onclick="clearIngresos()" style="border-color:var(--red);color:var(--red)">🗑 Limpiar</button>
+    </div>
 
+    <!-- Filtros -->
+    <div class="list-toolbar" style="margin-bottom:12px">
+      <button class="filter-btn active" data-ing-filter="todos"    onclick="setIngresosFilter(this)">Todos</button>
+      <button class="filter-btn"        data-ing-filter="ok"       onclick="setIngresosFilter(this)">✓ Permitidos</button>
+      <button class="filter-btn"        data-ing-filter="denegado" onclick="setIngresosFilter(this)">✗ Denegados</button>
+    </div>
 
-<!-- ALERTS MODAL -->
+    <!-- Lista de ingresos -->
+    <div id="ingresos-list"></div>
+
+    <!-- Agregar ingreso manual al final -->
+    <div class="form-section" style="margin-top:20px">
+      <div class="form-section-title">+ Agregar ingreso manual</div>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="f">
+          <label>DNI (optativo)</label>
+          <input type="text" id="manual-dni" inputmode="numeric" maxlength="8" placeholder="00000000" oninput="buscarSocioManual()">
+        </div>
+      </div>
+      <div id="manual-preview" style="display:none;padding:10px 14px;margin:8px 0;font-size:13px;letter-spacing:.04em;"></div>
+      <button class="btn-guardar" onclick="checkinManual()" style="margin-top:8px;padding:13px">
+        <span id="manual-btn-txt">REGISTRAR INGRESO</span>
+      </button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="alerts-modal" onclick="closeAlertsModal(event)">
   <div class="modal-sheet">
     <div class="modal-header">
@@ -597,6 +657,7 @@ function showApp() {
   updatePendingUI();
   updateStats();
   updateOnlineUI();
+  updateIngresosBadge();
   if (SCRIPT_URL && isOnline) setTimeout(loadFromSheet, 600);
   setTimeout(pollAlerts, 2000);
   startAlarmPolling();
@@ -608,9 +669,14 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
-    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    if (tab.dataset.tab === 'stats') setTimeout(animateBars, 100);
-    if (tab.dataset.tab === 'nuevo') document.getElementById('f-fecha').valueAsDate = new Date();
+    const tabEl = document.getElementById('tab-' + tab.dataset.tab);
+    tabEl.classList.add('active');
+    tabEl.style.display = 'flex';
+    // Hide non-active tabs
+    document.querySelectorAll('.tab-content:not(.active)').forEach(c => c.style.display = 'none');
+    if (tab.dataset.tab === 'stats')     setTimeout(animateBars, 100);
+    if (tab.dataset.tab === 'nuevo')     document.getElementById('f-fecha').valueAsDate = new Date();
+    if (tab.dataset.tab === 'ingresos')  renderIngresos();
   });
 });
 
@@ -704,55 +770,69 @@ async function loadFromSheet() {
     const r = await apiCall({ action: 'get_all' });
     if (!r.ok || !r.data || !r.data.Socios) { setSyncState('synced','Sincronizado'); return; }
 
+    // Build map of sheet data by ID
     const sheetMap = {};
     r.data.Socios.forEach(row => {
-      // Skip header/banner rows — real IDs start with 'r' or are numeric
-      const id = String(row['ID'] || row['id'] || '').trim();
-      if (!id || id.toLowerCase().includes('gymadmin') || id === 'ID') return;
-
-      // Support both column name variants
-      const venc = row['Vencimiento'] || row['vencimiento'] || '';
+      const id = String(row['ID'] || '').trim();
+      if (!id) return;
       sheetMap[id] = {
-        id,
-        nombre:         row['Nombre']          || row['nombre']         || '',
-        dni:            row['DNI']             || row['dni']            || '',
-        telefono:       row['Teléfono']        || row['telefono']       || '',
-        email:          row['Email']           || row['email']          || '',
-        plan:           row['Plan']            || row['plan']           || '',
-        monto:          row['Monto']           || row['monto']          || '',
-        fecha_pago:     row['Fecha Pago']      || row['fecha_pago']     || '',
-        vencimiento:    venc,
-        notas:          row['Notas']           || row['notas']          || '',
-        fecha_registro: row['Fecha Registro']  || row['fecha_registro'] || '',
-        status:         row['Estado']          || row['estado']         || calcStatus(venc),
-        synced: true
+        id, nombre: row['Nombre'], dni: row['DNI'], telefono: row['Teléfono'],
+        email: row['Email'], plan: row['Plan'], monto: row['Monto'],
+        fecha_pago: row['Fecha Pago'], vencimiento: row['Vencimiento'],
+        notas: row['Notas'], fecha_registro: row['Fecha Registro'],
+        status: row['Estado'] || calcStatus(row['Vencimiento']), synced: true
       };
     });
 
+    // Keep local-only records that haven't synced yet, replace everything else
     const localOnly = socios.filter(s => !s.synced && !sheetMap[s.id]);
     socios = [...Object.values(sheetMap), ...localOnly];
 
     saveLocal(); renderSocios(); updateStats();
-    setSyncState('synced', 'Sincronizado');
-    showToast('✓ ' + Object.keys(sheetMap).length + ' socios cargados', 'success');
-  } catch(e) {
-    setSyncState('error', 'Error al cargar');
-    showToast('Error al sincronizar: ' + e.message, 'error');
-  }
+    setSyncState('synced','Sincronizado');
+  } catch(e) { setSyncState('error','Error'); }
 }
 
 async function apiCall(payload) {
   if (payload.action === 'get_all') {
-    const res = await fetch('/api/proxy?url=' + encodeURIComponent(SCRIPT_URL) + '&action=get_all&t=' + Date.now());
-    return await res.json();
+    // Use JSONP to avoid CORS — Google Apps Script supports ?callback=
+    return await jsonpFetch(SCRIPT_URL + '?action=get_all&t=' + Date.now());
   } else {
-    await fetch('/api/proxy?url=' + encodeURIComponent(SCRIPT_URL), {
+    // no-cors POST: response is opaque, write still executes on Google's side
+    await fetch(SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
     return { ok: true };
   }
+}
+
+function jsonpFetch(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'gjsonp_' + Date.now();
+    const script = document.createElement('script');
+    const timer  = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 15000);
+
+    window[cbName] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('JSONP error')); };
+    script.src = url + '&callback=' + cbName;
+    document.head.appendChild(script);
+  });
 }
 
 function saveLocal() {
@@ -946,8 +1026,7 @@ let seenAlertIds = new Set(JSON.parse(localStorage.getItem('gym_seen_alerts') ||
 async function pollAlerts() {
   if (!SCRIPT_URL || !isOnline) return;
   try {
-    const res = await fetch('/api/proxy?url=' + encodeURIComponent(SCRIPT_URL) + '&action=get_all&t=' + Date.now());
-    const r   = await res.json();
+    const r = await jsonpFetch(SCRIPT_URL + '?action=get_all&t=' + Date.now());
     if (!r.ok || !r.data || !r.data.Alertas) return;
 
     alertas = r.data.Alertas.map(a => ({
@@ -1114,11 +1193,10 @@ function checkLiveAccess() {
 }
 
 function showAccessAlarm(ev) {
-  const isOk    = ev.type === 'access_ok';
-  const method  = ev.method === 'dni' ? 'DNI' : 'Huella';
-  const hora    = ev.hora || new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-  const alarm   = document.getElementById('access-alarm');
-  const id      = 'alarm-' + Date.now();
+  const isOk = ev.type === 'access_ok';
+  const hora  = ev.hora || new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  const alarm = document.getElementById('access-alarm');
+  const id    = 'alarm-' + Date.now();
 
   const card = document.createElement('div');
   card.className = 'alarm-card ' + (isOk ? 'ok' : 'err');
@@ -1127,53 +1205,218 @@ function showAccessAlarm(ev) {
     <div class="alarm-dot"></div>
     <div class="alarm-body">
       <div class="alarm-name">${isOk ? '✓' : '✗'} ${ev.nombre}</div>
-      <div class="alarm-meta">${isOk ? 'Acceso permitido' : 'Acceso denegado'} · ${ev.plan || '—'} · ${method}</div>
+      <div class="alarm-meta">${isOk ? 'Acceso permitido' : 'Acceso denegado'} · ${ev.plan || '—'}${ev.venc && !isOk ? ' · Venció '+ev.venc : ''}</div>
     </div>
     <div class="alarm-time">${hora}</div>
     <button class="alarm-dismiss" onclick="dismissAlarm('${id}')">✕</button>
   `;
 
-  // Play audio cue
+  // Sound
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (isOk) {
-      // Two ascending beeps
-      [0, 0.18].forEach((d,i) => {
-        const o = ctx.createOscillator(); const g = ctx.createGain();
+      [0,.18].forEach((d,i) => {
+        const o=ctx.createOscillator(), g=ctx.createGain();
         o.connect(g); g.connect(ctx.destination);
-        o.type = 'sine'; o.frequency.value = 520 + i*160;
-        g.gain.setValueAtTime(.15, ctx.currentTime+d);
-        g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+d+.18);
+        o.type='sine'; o.frequency.value=520+i*160;
+        g.gain.setValueAtTime(.15,ctx.currentTime+d);
+        g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+d+.18);
         o.start(ctx.currentTime+d); o.stop(ctx.currentTime+d+.18);
       });
     } else {
-      // Three descending beeps
-      [0, .25, .5].forEach((d,i) => {
-        const o = ctx.createOscillator(); const g = ctx.createGain();
+      [0,.25,.5].forEach((d,i) => {
+        const o=ctx.createOscillator(), g=ctx.createGain();
         o.connect(g); g.connect(ctx.destination);
-        o.type = 'square'; o.frequency.value = 440 - i*80;
-        g.gain.setValueAtTime(.2, ctx.currentTime+d);
-        g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+d+.2);
+        o.type='square'; o.frequency.value=440-i*80;
+        g.gain.setValueAtTime(.2,ctx.currentTime+d);
+        g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+d+.2);
         o.start(ctx.currentTime+d); o.stop(ctx.currentTime+d+.2);
       });
     }
-  } catch(e) {}
+  } catch(e){}
 
   alarm.appendChild(card);
-
-  // Auto-dismiss after 8s
   clearTimeout(alarmTimer);
-  alarmTimer = setTimeout(() => dismissAlarm(id), 8000);
+  alarmTimer = setTimeout(() => dismissAlarm(id), isOk ? 5000 : 10000);
 
-  // Flash page title
-  const orig = document.title;
-  let flashes = 0;
-  const fi = setInterval(() => {
-    document.title = flashes++ % 2 === 0
-      ? (isOk ? '✅ ACCESO OK' : '🚨 ACCESO DENEGADO')
-      : 'GymAdmin';
-    if (flashes >= 6) { clearInterval(fi); document.title = orig; }
-  }, 500);
+  // Flash title only for denied
+  if (!isOk) {
+    const orig = document.title;
+    let f = 0;
+    const fi = setInterval(() => {
+      document.title = f++%2===0 ? '🚨 ACCESO DENEGADO' : 'GymAdmin';
+      if (f>=8){ clearInterval(fi); document.title=orig; }
+    }, 500);
+  }
+
+  // Log to ingresos
+  logIngreso(ev);
+}
+
+// ── INGRESOS LOG ──
+const INGRESOS_KEY = 'gym_ingresos_log';
+let ingresosFilter = 'todos';
+
+function logIngreso(ev) {
+  const log  = JSON.parse(localStorage.getItem(INGRESOS_KEY) || '[]');
+  const tipo = ev.type === 'access_ok' ? 'ok' : 'denegado';
+  log.unshift({
+    id:     Date.now(),
+    tipo,
+    nombre: ev.nombre || '—',
+    plan:   ev.plan   || '—',
+    hora:   ev.hora   || new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),
+    fecha:  new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}),
+    venc:   ev.venc   || ''
+  });
+  // Keep last 200 records
+  if (log.length > 200) log.splice(200);
+  localStorage.setItem(INGRESOS_KEY, JSON.stringify(log));
+
+  // Update badge
+  updateIngresosBadge();
+
+  // Re-render if tab is open
+  const tab = document.getElementById('tab-ingresos');
+  if (tab && tab.classList.contains('active')) renderIngresos();
+}
+
+function updateIngresosBadge() {
+  // Show count of today's denied
+  const log   = JSON.parse(localStorage.getItem(INGRESOS_KEY) || '[]');
+  const hoy   = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const denied = log.filter(r => r.tipo==='denegado' && r.fecha===hoy).length;
+  const badge  = document.getElementById('ingresos-badge');
+  if (denied > 0) { badge.style.display='flex'; badge.textContent=denied; }
+  else { badge.style.display='none'; }
+}
+
+function setIngresosFilter(btn) {
+  document.querySelectorAll('[data-ing-filter]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ingresosFilter = btn.dataset.ingFilter;
+  renderIngresos();
+}
+
+function renderIngresos() {
+  const log  = JSON.parse(localStorage.getItem(INGRESOS_KEY) || '[]');
+  const hoy  = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const list = document.getElementById('ingresos-list');
+
+  // Filter
+  let filtered = log;
+  if (ingresosFilter === 'ok')       filtered = log.filter(r => r.tipo === 'ok');
+  if (ingresosFilter === 'denegado') filtered = log.filter(r => r.tipo === 'denegado');
+
+  const todayCount   = log.filter(r => r.fecha===hoy).length;
+  const deniedToday  = log.filter(r => r.fecha===hoy && r.tipo==='denegado').length;
+  document.getElementById('ingresos-sub').textContent =
+    `Hoy: ${todayCount} acceso${todayCount!==1?'s':''} · ${deniedToday} denegado${deniedToday!==1?'s':''}`;
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state"><div class="big">📋</div><p>Sin registros</p></div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(r => {
+    const icon = r.tipo==='ok' ? '✓' : '✗';
+    const meta = r.tipo==='denegado'
+      ? `${r.plan} · Denegado${r.venc ? ' · Venció '+r.venc : ''}`
+      : `${r.plan} · Acceso permitido`;
+    return `<div class="ingreso-row ${r.tipo}">
+      <div class="ingreso-icon">${icon}</div>
+      <div class="ingreso-body">
+        <div class="ingreso-nombre">${r.nombre}</div>
+        <div class="ingreso-meta">${meta} · ${r.fecha}</div>
+      </div>
+      <div class="ingreso-hora">${r.hora}</div>
+    </div>`;
+  }).join('');
+}
+
+function clearIngresos() {
+  if (!confirm('¿Limpiar todo el registro de ingresos?')) return;
+  localStorage.removeItem(INGRESOS_KEY);
+  updateIngresosBadge();
+  renderIngresos();
+  showToast('Registro limpiado', 'warn');
+}
+
+function buscarSocioManual() {
+  const raw     = (document.getElementById('manual-dni').value || '').replace(/\D/g,'');
+  const preview = document.getElementById('manual-preview');
+  if (raw.length < 6) { preview.style.display = 'none'; return; }
+
+  const socio = socios.find(s => (s.dni||'').replace(/\D/g,'') === raw);
+  if (!socio) {
+    preview.style.display = 'block';
+    preview.style.background = 'rgba(255,68,68,.06)';
+    preview.style.border = '1px solid rgba(255,68,68,.2)';
+    preview.style.color  = 'var(--muted2)';
+    preview.textContent  = 'DNI no encontrado en el sistema — se registrará igual';
+    return;
+  }
+
+  const now      = new Date(); now.setHours(0,0,0,0);
+  const venc     = socio.vencimiento ? new Date(String(socio.vencimiento)) : null;
+  const daysLeft = venc ? Math.ceil((venc - now) / 86400000) : null;
+  const vigente  = socio.status === 'vigente' && daysLeft !== null && daysLeft > 0;
+
+  preview.style.display = 'block';
+  if (vigente) {
+    preview.style.background = 'rgba(68,255,136,.06)';
+    preview.style.border     = '1px solid rgba(68,255,136,.2)';
+    preview.style.color      = 'var(--green)';
+    preview.textContent      = '✓ ' + socio.nombre + ' · ' + socio.plan + (daysLeft <= 7 ? ' · Vence en ' + daysLeft + ' día' + (daysLeft===1?'':'s') : '');
+  } else {
+    preview.style.background = 'rgba(255,68,68,.06)';
+    preview.style.border     = '1px solid rgba(255,68,68,.2)';
+    preview.style.color      = 'var(--red)';
+    preview.textContent      = '✗ ' + socio.nombre + ' · Membresía vencida · ' + socio.plan;
+  }
+}
+
+function checkinManual() {
+  const raw  = (document.getElementById('manual-dni').value || '').replace(/\D/g,'');
+  const hora = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  const fecha = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+  let entry;
+  if (!raw) {
+    // Sin DNI — registrar como ingreso manual sin identificar
+    entry = { id:Date.now(), tipo:'ok', nombre:'Ingreso manual', plan:'—', hora, fecha, venc:'' };
+  } else {
+    const socio = socios.find(s => (s.dni||'').replace(/\D/g,'') === raw);
+    if (!socio) {
+      entry = { id:Date.now(), tipo:'ok', nombre:'DNI ' + raw + ' (no registrado)', plan:'—', hora, fecha, venc:'' };
+    } else {
+      const now  = new Date(); now.setHours(0,0,0,0);
+      const venc = socio.vencimiento ? new Date(String(socio.vencimiento)) : null;
+      const daysLeft = venc ? Math.ceil((venc - now) / 86400000) : null;
+      const vigente  = socio.status === 'vigente' && daysLeft !== null && daysLeft > 0;
+      entry = {
+        id: Date.now(),
+        tipo: vigente ? 'ok' : 'denegado',
+        nombre: socio.nombre,
+        plan: socio.plan,
+        hora, fecha,
+        venc: venc && !vigente ? formatDate(socio.vencimiento) : ''
+      };
+    }
+  }
+
+  const log = JSON.parse(localStorage.getItem(INGRESOS_KEY) || '[]');
+  log.unshift(entry);
+  if (log.length > 200) log.splice(200);
+  localStorage.setItem(INGRESOS_KEY, JSON.stringify(log));
+
+  // Reset form
+  document.getElementById('manual-dni').value = '';
+  document.getElementById('manual-preview').style.display = 'none';
+
+  updateIngresosBadge();
+  renderIngresos();
+  showToast('✓ Ingreso registrado — ' + entry.nombre, entry.tipo === 'ok' ? 'success' : 'error');
 }
 
 function dismissAlarm(id) {
