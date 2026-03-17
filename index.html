@@ -190,6 +190,75 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
 #toast.warn{border-left:3px solid var(--orange);}
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-thumb{background:var(--border2);}
+
+/* ── LIVE ACCESS ALARM ── */
+#access-alarm {
+  position: fixed;
+  top: 56px; left: 0; right: 0;
+  z-index: 150;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.alarm-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px;
+  border-left: 4px solid;
+  border-radius: 0 0 8px 8px;
+  animation: alarmSlide .4s cubic-bezier(.34,1.2,.64,1);
+  pointer-events: all;
+}
+
+@keyframes alarmSlide {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+.alarm-card.ok  { background: rgba(0,255,136,.08); border-color: var(--green); }
+.alarm-card.err { background: rgba(255,68,68,.08);  border-color: var(--red);   }
+
+.alarm-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  animation: alarmPulse .8s ease-in-out infinite;
+}
+.alarm-card.ok  .alarm-dot { background: var(--green); }
+.alarm-card.err .alarm-dot { background: var(--red);   }
+
+@keyframes alarmPulse {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.5); opacity: .5; }
+}
+
+.alarm-body { flex: 1; }
+.alarm-name { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: .08em; line-height: 1; }
+.alarm-card.ok  .alarm-name { color: var(--green); }
+.alarm-card.err .alarm-name { color: var(--red); }
+.alarm-meta { font-size: 11px; color: var(--muted2); margin-top: 3px; letter-spacing: .04em; }
+.alarm-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.alarm-dismiss { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 4px; flex-shrink: 0; }
+.alarm-dismiss:hover { color: var(--text); }
+
+/* ── BALANCE SECTION ── */
+.balance-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 20px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.balance-card::before { content:''; position:absolute; top:0; left:0; width:32px; height:2px; background: var(--green); }
+.balance-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.balance-title { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted2); font-weight: 600; }
+.balance-period { font-size: 11px; color: var(--muted); letter-spacing: .06em; }
+.balance-total { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: .05em; color: var(--green); line-height: 1; margin-bottom: 4px; }
+.balance-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+.balance-rows { display: flex; flex-direction: column; gap: 8px; }
+.balance-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.balance-row-label { color: var(--muted2); }
+.balance-row-val { font-weight: 600; color: var(--text); }
+.balance-divider { height: 1px; background: var(--border); margin: 8px 0; }
+
 </style>
 </head>
 <body>
@@ -242,6 +311,9 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
 <!-- APP -->
 <div class="screen hidden" id="s-app">
   <div class="offline-banner" id="offline-banner">⚡ Sin conexión — los cambios se sincronizan cuando vuelva la red</div>
+
+  <!-- LIVE ACCESS ALARM -->
+  <div id="access-alarm"></div>
 
   <div class="app-header">
     <div class="app-logo">GymAdmin</div>
@@ -345,6 +417,19 @@ html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg);color
       <div class="section-title">Resumen</div>
       <div class="section-sub" id="stats-sub">—</div>
       <div class="stats-grid" id="stats-grid"></div>
+
+      <!-- BALANCE DEL MES -->
+      <div class="balance-card" id="balance-card">
+        <div class="balance-header">
+          <div class="balance-title">Balance del mes</div>
+          <div class="balance-period" id="balance-period">—</div>
+        </div>
+        <div class="balance-total" id="balance-total">$0</div>
+        <div class="balance-sub" id="balance-sub">ingresos registrados este mes</div>
+        <div class="balance-rows" id="balance-rows"></div>
+      </div>
+
+      </div><!-- /balance-card -->
 
       <div class="chart-section" id="venc-section" style="display:none">
         <div class="chart-title">⚠ Vencen en los próximos 7 días</div>
@@ -517,6 +602,7 @@ function showApp() {
   updateOnlineUI();
   if (SCRIPT_URL && isOnline) setTimeout(loadFromSheet, 600);
   setTimeout(pollAlerts, 2000);
+  startAlarmPolling();
 }
 
 // ── TABS
@@ -797,6 +883,7 @@ const PLAN_COLORS = ['var(--accent)','var(--blue)','var(--green)','#cc88ff','var
 
 function animateBars() {
   updateStats();
+  updateBalance();
 
   // Por plan
   const pc = {};
@@ -1001,9 +1088,141 @@ function deleteSocio() {
   showToast('Socio eliminado', 'warn');
 }
 
-// ── TOAST
-let toastT;
-function showToast(msg, type='info') {
+// ── LIVE ACCESS ALARM (reads from checkin.html via localStorage) ──
+let lastAlarmTs = 0;
+let alarmTimer  = null;
+
+function startAlarmPolling() {
+  setInterval(checkLiveAccess, 2000);
+}
+
+function checkLiveAccess() {
+  try {
+    const raw = localStorage.getItem('gym_last_access');
+    if (!raw) return;
+    const ev = JSON.parse(raw);
+    if (!ev || ev.ts <= lastAlarmTs) return;
+    lastAlarmTs = ev.ts;
+    showAccessAlarm(ev);
+  } catch(e) {}
+}
+
+function showAccessAlarm(ev) {
+  const isOk    = ev.type === 'access_ok';
+  const method  = ev.method === 'dni' ? 'DNI' : 'Huella';
+  const hora    = ev.hora || new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  const alarm   = document.getElementById('access-alarm');
+  const id      = 'alarm-' + Date.now();
+
+  const card = document.createElement('div');
+  card.className = 'alarm-card ' + (isOk ? 'ok' : 'err');
+  card.id = id;
+  card.innerHTML = `
+    <div class="alarm-dot"></div>
+    <div class="alarm-body">
+      <div class="alarm-name">${isOk ? '✓' : '✗'} ${ev.nombre}</div>
+      <div class="alarm-meta">${isOk ? 'Acceso permitido' : 'Acceso denegado'} · ${ev.plan || '—'} · ${method}</div>
+    </div>
+    <div class="alarm-time">${hora}</div>
+    <button class="alarm-dismiss" onclick="dismissAlarm('${id}')">✕</button>
+  `;
+
+  // Play audio cue
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (isOk) {
+      // Two ascending beeps
+      [0, 0.18].forEach((d,i) => {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'sine'; o.frequency.value = 520 + i*160;
+        g.gain.setValueAtTime(.15, ctx.currentTime+d);
+        g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+d+.18);
+        o.start(ctx.currentTime+d); o.stop(ctx.currentTime+d+.18);
+      });
+    } else {
+      // Three descending beeps
+      [0, .25, .5].forEach((d,i) => {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'square'; o.frequency.value = 440 - i*80;
+        g.gain.setValueAtTime(.2, ctx.currentTime+d);
+        g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+d+.2);
+        o.start(ctx.currentTime+d); o.stop(ctx.currentTime+d+.2);
+      });
+    }
+  } catch(e) {}
+
+  alarm.appendChild(card);
+
+  // Auto-dismiss after 8s
+  clearTimeout(alarmTimer);
+  alarmTimer = setTimeout(() => dismissAlarm(id), 8000);
+
+  // Flash page title
+  const orig = document.title;
+  let flashes = 0;
+  const fi = setInterval(() => {
+    document.title = flashes++ % 2 === 0
+      ? (isOk ? '✅ ACCESO OK' : '🚨 ACCESO DENEGADO')
+      : 'GymAdmin';
+    if (flashes >= 6) { clearInterval(fi); document.title = orig; }
+  }, 500);
+}
+
+function dismissAlarm(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.style.transition = 'opacity .3s, transform .3s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(-20px)';
+    setTimeout(() => el.remove(), 300);
+  }
+}
+
+// ── BALANCE DEL MES ──
+function updateBalance() {
+  const now      = new Date();
+  const mesActual = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const mesNombre = now.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+
+  // Group by plan for current month
+  const planTotals = {};
+  let totalMes = 0;
+  let countMes = 0;
+
+  socios.forEach(s => {
+    if (!s.fecha_pago || !s.monto) return;
+    const mk = s.fecha_pago.slice(0,7);
+    if (mk !== mesActual) return;
+    const monto = Number(s.monto);
+    planTotals[s.plan] = (planTotals[s.plan] || 0) + monto;
+    totalMes += monto;
+    countMes++;
+  });
+
+  document.getElementById('balance-period').textContent = mesNombre;
+  document.getElementById('balance-total').textContent =
+    '$' + totalMes.toLocaleString('es-AR');
+  document.getElementById('balance-sub').textContent =
+    countMes + ' pago' + (countMes !== 1 ? 's' : '') + ' registrado' + (countMes !== 1 ? 's' : '') + ' este mes';
+
+  const rows = document.getElementById('balance-rows');
+  if (!Object.keys(planTotals).length) {
+    rows.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:12px 0">Sin pagos registrados este mes</div>';
+    return;
+  }
+
+  const sorted = Object.entries(planTotals).sort((a,b) => b[1]-a[1]);
+  rows.innerHTML = sorted.map(([plan, monto], i) => `
+    <div class="balance-row">
+      <span class="balance-row-label">${plan}</span>
+      <span class="balance-row-val">$${monto.toLocaleString('es-AR')}</span>
+    </div>
+    ${i < sorted.length-1 ? '<div class="balance-divider"></div>' : ''}
+  `).join('');
+}
+
   clearTimeout(toastT);
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = 'show ' + type;

@@ -395,6 +395,87 @@ html, body {
 #result.warn .countdown-bar { background: var(--orange); }
 #result.err  .countdown-bar { background: var(--red); }
 
+/* ── DNI MODE ── */
+#dni-screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: var(--bg);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+  padding: 32px;
+}
+#dni-screen.show { opacity: 1; pointer-events: all; }
+
+.dni-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(16px, 3.5vw, 22px);
+  letter-spacing: .2em;
+  color: var(--muted2);
+  margin-bottom: 28px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.dni-input-wrap {
+  position: relative;
+  width: 100%; max-width: 340px;
+  margin-bottom: 20px;
+}
+
+#dni-field {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  color: var(--text);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(40px, 10vw, 72px);
+  letter-spacing: .2em;
+  text-align: center;
+  outline: none;
+  padding: 8px 0;
+  caret-color: var(--accent);
+  transition: border-color .2s;
+}
+#dni-field:focus { border-bottom-color: var(--accent); }
+#dni-field::placeholder { color: var(--muted); font-size: clamp(24px, 6vw, 40px); letter-spacing: .15em; }
+
+.btn-dni-check {
+  width: 100%; max-width: 340px;
+  background: var(--accent); color: #000;
+  border: none;
+  padding: 18px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(18px, 4vw, 24px);
+  letter-spacing: .18em;
+  cursor: pointer;
+  transition: opacity .2s;
+  margin-bottom: 16px;
+}
+.btn-dni-check:active { opacity: .8; }
+
+.btn-dni-cancel {
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); cursor: pointer; margin-top: 8px;
+}
+.btn-dni-cancel:hover { color: var(--text); }
+
+/* ── METHOD INDICATOR on idle ── */
+.mode-badge {
+  position: absolute;
+  top: clamp(16px, 4vw, 28px);
+  right: clamp(16px, 4vw, 28px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  z-index: 2;
+}
+
 /* Toast */
 #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:#1a1a1a; border:1px solid #333; padding:12px 20px; font-size:13px; letter-spacing:.04em; z-index:9999; opacity:0; transition:all .35s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; pointer-events:none; }
 #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
@@ -406,22 +487,34 @@ html, body {
 <body>
 
 <!-- IDLE -->
-<div id="idle" onclick="startCheckin()">
+<div id="idle" onclick="handleIdleTap()">
   <div class="idle-bg"></div>
-  <div class="idle-logo">GymAdmin</div>
+  <div class="idle-logo" id="idle-gym-name">GymAdmin</div>
   <div class="idle-sub">Sistema de acceso</div>
 
-  <div class="fp-ring-wrap">
+  <div class="fp-ring-wrap" id="fp-ring-wrap">
     <div class="fp-ring">
-      <span class="fp-icon">👆</span>
+      <span class="fp-icon" id="idle-mode-icon">&#128070;</span>
     </div>
-    <div class="fp-label">Apoyá tu dedo para ingresar</div>
+    <div class="fp-label" id="fp-label">Apoya tu dedo para ingresar</div>
   </div>
 
   <div class="idle-clock">
     <div class="clock-time" id="clock-time">00:00</div>
-    <div class="clock-date" id="clock-date">—</div>
+    <div class="clock-date" id="clock-date">&#8212;</div>
   </div>
+
+  <div class="mode-badge" id="mode-badge">Huella</div>
+</div>
+
+<!-- DNI SCREEN -->
+<div id="dni-screen">
+  <div class="dni-title">Ingresa tu DNI</div>
+  <div class="dni-input-wrap">
+    <input type="text" id="dni-field" inputmode="numeric" maxlength="8" placeholder="00000000" autocomplete="off">
+  </div>
+  <button class="btn-dni-check" onclick="checkDniAccess()">VERIFICAR ACCESO</button>
+  <div class="btn-dni-cancel" onclick="showScreen('idle')">Cancelar</div>
 </div>
 
 <!-- SCANNING -->
@@ -504,6 +597,27 @@ html, body {
       <input class="setup-inp" id="modal-script-url" type="url" placeholder="https://script.google.com/...">
       <button class="btn-setup" style="margin-top:8px;font-size:16px" onclick="saveScriptFromModal()">GUARDAR URL</button>
     </div>
+
+    <div style="margin-top:16px;border-top:1px solid #222;padding-top:16px;">
+      <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:12px;font-weight:600">Metodo de Acceso</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button id="btn-method-huella" onclick="setCheckinMethod('huella')"
+          style="flex:1;padding:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted2);font-family:'Barlow',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;font-weight:600">
+          Huella Digital
+        </button>
+        <button id="btn-method-dni" onclick="setCheckinMethod('dni')"
+          style="flex:1;padding:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted2);font-family:'Barlow',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;font-weight:600">
+          DNI Manual
+        </button>
+      </div>
+      <div id="method-status" style="font-size:11px;color:var(--muted2);text-align:center"></div>
+    </div>
+
+    <div style="margin-top:16px;border-top:1px solid #222;padding-top:16px;">
+      <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;font-weight:600">Nombre del Gimnasio</div>
+      <input class="setup-inp" id="modal-gym-name" type="text" placeholder="Ej: Iron Gym">
+      <button class="btn-setup" style="margin-top:8px;font-size:16px;background:#444" onclick="saveGymName()">GUARDAR NOMBRE</button>
+    </div>
   </div>
 </div>
 
@@ -513,17 +627,20 @@ html, body {
 
 <script>
 // ============================================================
-const SCRIPT_URL_KEY = 'gym_checkin_url';
-const FP_KEY         = 'gym_fingerprints';   // { credentialId: socioId }
-const DEMO_MODE_KEY  = 'gym_checkin_demo';
+const SCRIPT_URL_KEY  = 'gym_checkin_url';
+const FP_KEY          = 'gym_fingerprints';   // { credentialId: socioId }
+const DEMO_MODE_KEY   = 'gym_checkin_demo';
+const METHOD_KEY      = 'gym_checkin_method';  // 'huella' | 'dni'
+const GYM_NAME_KEY    = 'gym_name';
 // ============================================================
 
-let scriptUrl   = localStorage.getItem(SCRIPT_URL_KEY) || '';
-let isDemoMode  = localStorage.getItem(DEMO_MODE_KEY) === 'true';
+let scriptUrl    = localStorage.getItem(SCRIPT_URL_KEY) || '';
+let isDemoMode   = localStorage.getItem(DEMO_MODE_KEY) === 'true';
 let fingerprints = JSON.parse(localStorage.getItem(FP_KEY) || '{}');
-let socios      = JSON.parse(localStorage.getItem('gym_socios') || '[]');
+let socios       = JSON.parse(localStorage.getItem('gym_socios') || '[]');
 let selectedSocio = null;
-let resultTimer = null;
+let resultTimer  = null;
+let checkinMethod = localStorage.getItem(METHOD_KEY) || 'huella'; // 'huella' | 'dni'
 
 // WebAuthn RP config
 const RP_ID   = location.hostname || 'localhost';
@@ -532,13 +649,55 @@ const RP_NAME = 'GymAdmin';
 // ── INIT ──
 window.onload = () => {
   startClock();
+  applyMethod(checkinMethod);
+  const gymName = localStorage.getItem(GYM_NAME_KEY);
+  if (gymName) document.getElementById('idle-gym-name').textContent = gymName;
+
   if (!scriptUrl && !isDemoMode) {
     document.getElementById('setup-overlay').style.display = 'flex';
   } else {
     loadSociosFromStorage();
     if (scriptUrl) syncSocios();
   }
+
+  // Pre-fill config fields if already saved
+  if (document.getElementById('ci-tg-token') && localStorage.getItem('gym_tg_token')) {
+    document.getElementById('ci-tg-token').value = localStorage.getItem('gym_tg_token');
+    document.getElementById('ci-tg-chat').value  = localStorage.getItem('gym_tg_chat_id') || '';
+  }
+
+  // DNI field: enter key submits
+  document.getElementById('dni-field').addEventListener('keydown', e => {
+    if (e.key === 'Enter') checkDniAccess();
+  });
 };
+
+// Apply method changes idle screen look
+function applyMethod(method) {
+  checkinMethod = method;
+  localStorage.setItem(METHOD_KEY, method);
+  const badge = document.getElementById('mode-badge');
+  const label = document.getElementById('fp-label');
+  const icon  = document.getElementById('idle-mode-icon');
+  if (method === 'dni') {
+    badge.textContent = 'DNI';
+    label.textContent = 'Toca para ingresar tu DNI';
+    icon.textContent  = '&#128196;';
+  } else {
+    badge.textContent = 'Huella';
+    label.textContent = 'Apoya tu dedo para ingresar';
+    icon.textContent  = '&#128070;';
+  }
+}
+
+function handleIdleTap() {
+  if (checkinMethod === 'dni') {
+    showScreen('dni');
+    setTimeout(() => document.getElementById('dni-field').focus(), 100);
+  } else {
+    startCheckin();
+  }
+}
 
 // ── CLOCK ──
 function startClock() {
@@ -693,11 +852,16 @@ async function startCheckin() {
 }
 
 function showScreen(name) {
-  document.getElementById('idle').style.opacity     = name==='idle'     ? '1' : '0';
-  document.getElementById('idle').style.pointerEvents = name==='idle'   ? 'all' : 'none';
+  document.getElementById('idle').style.opacity       = name==='idle' ? '1' : '0';
+  document.getElementById('idle').style.pointerEvents = name==='idle' ? 'all' : 'none';
   document.getElementById('scanning').classList.toggle('show', name==='scanning');
+  const dniScreen = document.getElementById('dni-screen');
+  dniScreen.classList.toggle('show', name==='dni');
   if (name !== 'result') {
     document.getElementById('result').classList.remove('show','ok','warn','err');
+  }
+  if (name === 'idle') {
+    document.getElementById('dni-field').value = '';
   }
 }
 
@@ -732,6 +896,57 @@ function showResult(type, icon, name, detail) {
     // Re-sync socios periodically
     if (scriptUrl) syncSocios();
   }, DURATION);
+}
+
+// ── DNI CHECK-IN ──
+function checkDniAccess() {
+  const raw = document.getElementById('dni-field').value.trim().replace(/\D/g,'');
+  if (raw.length < 6) { showToast('Ingresa un DNI valido', 'err'); return; }
+
+  const socio = socios.find(s => (s.dni||'').replace(/\D/g,'') === raw);
+  showScreen('idle');
+
+  if (!socio) {
+    playDeniedSound();
+    showResult('err', 'x', 'DNI no encontrado', 'El DNI ' + raw + ' no esta registrado en el sistema.');
+    notifyAdminDenied({ nombre: 'DNI ' + raw, plan: '—', vencimiento: null });
+    return;
+  }
+
+  const now  = new Date(); now.setHours(0,0,0,0);
+  const venc = socio.vencimiento ? new Date(String(socio.vencimiento)) : null;
+  const daysLeft = venc ? Math.ceil((venc - now) / 86400000) : null;
+
+  if (socio.status === 'vigente' && daysLeft !== null && daysLeft > 0) {
+    const detail = daysLeft <= 7
+      ? 'Vence en ' + daysLeft + ' dia' + (daysLeft===1?'':'s') + ' · ' + socio.plan
+      : 'Membresia al dia · ' + socio.plan + ' · Vence ' + formatDate(socio.vencimiento);
+    playOkSound();
+    notifyAdminOk(socio);
+    showResult(daysLeft <= 7 ? 'warn' : 'ok', 'v', socio.nombre, detail);
+  } else {
+    playDeniedSound();
+    notifyAdmin(socio);
+    showResult('err', 'x', socio.nombre,
+      'Membresia vencida' + (venc ? ' el ' + formatDate(socio.vencimiento) : '') + ' · ' + socio.plan);
+  }
+}
+
+// Notify admin of successful access (for live feed)
+function notifyAdminOk(socio) {
+  const hora = new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+  broadcastToAdmin({ type: 'access_ok', nombre: socio.nombre, plan: socio.plan, hora, method: checkinMethod });
+}
+
+function notifyAdminDenied(socio) {
+  const hora = new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+  broadcastToAdmin({ type: 'access_denied', nombre: socio.nombre, plan: socio.plan, hora, method: checkinMethod });
+}
+
+function broadcastToAdmin(payload) {
+  try {
+    localStorage.setItem('gym_last_access', JSON.stringify({ ...payload, ts: Date.now() }));
+  } catch(e) {}
 }
 
 function formatDate(d) {
@@ -784,6 +999,24 @@ async function testTelegram() {
   }
 }
 
+function setCheckinMethod(method) {
+  applyMethod(method);
+  const active   = 'border-color:var(--accent);color:var(--accent);background:rgba(232,255,71,.06)';
+  const inactive = 'border-color:var(--border);color:var(--muted2);background:var(--surface)';
+  document.getElementById('btn-method-huella').style.cssText += method==='huella' ? active : inactive;
+  document.getElementById('btn-method-dni').style.cssText    += method==='dni'    ? active : inactive;
+  document.getElementById('method-status').textContent = method==='huella' ? 'Modo huella activado' : 'Modo DNI activado';
+  showToast('Metodo cambiado: ' + (method==='huella' ? 'Huella' : 'DNI'), 'ok');
+}
+
+function saveGymName() {
+  const name = document.getElementById('modal-gym-name').value.trim();
+  if (!name) return;
+  localStorage.setItem('gym_name', name);
+  document.getElementById('idle-gym-name').textContent = name;
+  showToast('Nombre guardado: ' + name, 'ok');
+}
+
 function saveScriptFromModal() {
   const url = document.getElementById('modal-script-url').value.trim();
   if (!url || !url.startsWith('https://script.google.com')) {
@@ -814,7 +1047,7 @@ function openRegModal() {
   document.getElementById('reg-selected').style.display = 'none';
   document.getElementById('btn-reg-fp').style.display = 'none';
   selectedSocio = null;
-  // Pre-fill config fields
+  // Pre-fill ALL config fields from localStorage (never ask twice)
   if (document.getElementById('tg-token-inp')) {
     document.getElementById('tg-token-inp').value = TG_TOKEN || '';
     document.getElementById('tg-chat-inp').value  = TG_CHAT_ID || '';
@@ -823,6 +1056,20 @@ function openRegModal() {
   if (document.getElementById('modal-script-url')) {
     document.getElementById('modal-script-url').value = scriptUrl || '';
   }
+  if (document.getElementById('modal-gym-name')) {
+    document.getElementById('modal-gym-name').value = localStorage.getItem('gym_name') || '';
+  }
+  // Highlight active method button
+  const activeStyle   = 'border:1px solid var(--accent);color:var(--accent);background:rgba(232,255,71,.06)';
+  const inactiveStyle = 'border:1px solid var(--border);color:var(--muted2);background:var(--surface)';
+  document.getElementById('btn-method-huella').setAttribute('style',
+    'flex:1;padding:12px;font-family:Barlow,sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;font-weight:600;' +
+    (checkinMethod==='huella' ? activeStyle : inactiveStyle));
+  document.getElementById('btn-method-dni').setAttribute('style',
+    'flex:1;padding:12px;font-family:Barlow,sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;font-weight:600;' +
+    (checkinMethod==='dni' ? activeStyle : inactiveStyle));
+  document.getElementById('method-status').textContent =
+    'Activo: ' + (checkinMethod==='huella' ? 'Huella Digital' : 'DNI Manual');
 }
 
 function closeRegModal() {
@@ -945,6 +1192,9 @@ async function notifyAdmin(socio) {
   const hora = new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
   const venc = socio.vencimiento ? formatDate(String(socio.vencimiento)) : '—';
   const msg  = `🚨 *Acceso denegado*\n👤 ${socio.nombre}\n📋 ${socio.plan}\n📅 Venció el ${venc}\n🕐 ${hora}hs`;
+
+  // Broadcast to admin panel via localStorage
+  broadcastToAdmin({ type: 'access_denied', nombre: socio.nombre, plan: socio.plan, venc, hora, method: checkinMethod });
 
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
